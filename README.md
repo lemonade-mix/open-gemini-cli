@@ -34,41 +34,75 @@ git clone https://github.com/limkcreply/open-gemini-cli
 cd open-gemini-cli
 npm install
 npm run build
-npm run start
+```
+
+**Configure environment:**
+```bash
+cp .env.example .env
+# Edit .env with your API keys
+```
+
+**Run:**
+```bash
+npx kaidex
+# OR link globally:
+npm link
+kaidex
 ```
 
 Requirements: Node.js 18+
 
-## Usage
-
-### With Local LLM (llama.cpp example)
+## Quick Start (Local LLM)
 
 ```bash
-# Start your local server first, then:
-export LLAMACPP_SERVER_URL="http://localhost:8080"
-kaidex --provider llamacpp
+# 1. Start your local LLM server (MLX, llama.cpp, etc.)
+
+# 2. Configure .env
+cp .env.example .env
+# Set: BYPASS_AUTH=true
+# Set: LLM_PROVIDER=local-mlx (or llamacpp, vllm)
+# Set: KAIDEX_SERVER_URL=http://localhost:11435 (your server URL)
+
+# 3. Run
+npx kaidex
+```
+
+## Usage
+
+### With Local LLM
+
+```bash
+# .env
+BYPASS_AUTH=true
+LLM_PROVIDER=llamacpp
+LLAMACPP_SERVER_URL=http://localhost:8080
 ```
 
 ### With OpenAI
 
 ```bash
-export OPENAI_API_KEY="your-key"
-kaidex --provider gpt-4.1-mini
+# .env
+OPENAI_API_KEY=your-key
+LLM_PROVIDER=gpt-4.1-mini
 ```
 
 ### With Anthropic
 
 ```bash
-export ANTHROPIC_API_KEY="your-key"
-kaidex --provider claude-sonnet
+# .env
+ANTHROPIC_API_KEY=your-key
+LLM_PROVIDER=claude-sonnet
 ```
 
-### With Google Gemini (original behavior)
+### With Google Gemini
 
 ```bash
-export GEMINI_API_KEY="your-key"
-kaidex
+# .env
+GEMINI_API_KEY=your-key
+LLM_PROVIDER=gemini-flash
 ```
+
+Then run: `npx kaidex`
 
 ## Provider Configuration
 
@@ -92,10 +126,27 @@ Providers are configured in `bundle/llmProviders.json`. Add your own:
 
 - File operations (read, write, edit)
 - Shell command execution
+- Web search (3-tier fallback: Tavily → Google Custom Search → Gemini)
 - Web fetching
 - MCP (Model Context Protocol) support
 - Conversation checkpointing
 - Project context via KAIDEX.md files
+
+## Web Search Setup
+
+Web search works with all LLM providers using automatic fallback:
+
+1. **Tavily AI** (recommended) - Free 1000 searches/month at [tavily.com](https://tavily.com)
+2. **Google Custom Search** - [Setup guide](https://programmablesearchengine.google.com/)
+3. **Google Gemini** - Built-in (Gemini provider only)
+
+```bash
+# In your .env file:
+TAVILY_API_KEY=your-tavily-key
+# OR
+GOOGLE_API_KEY=your-google-key
+GOOGLE_SEARCH_ENGINE_ID=your-search-engine-id
+```
 
 ## Documentation
 

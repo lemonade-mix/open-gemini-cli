@@ -12,6 +12,7 @@ bundle/*.vsix
 # Environment and secrets
 .env
 .env.*
+!.env.example
 *.env
 PRIVATE/
 
