@@ -4,35 +4,35 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { promises as fs } from 'node:fs';
-import path from 'node:path';
-import toml from '@iarna/toml';
-import { glob } from 'glob';
-import { z } from 'zod';
-import type { Config } from '@google/gemini-cli-core';
-import { Storage } from '@google/gemini-cli-core';
-import type { ICommandLoader } from './types.js';
+import { promises as fs } from "node:fs";
+import path from "node:path";
+import toml from "@iarna/toml";
+import { glob } from "glob";
+import { z } from "zod";
+import type { Config } from "@google/kaidex-cli-core";
+import { Storage } from "@google/kaidex-cli-core";
+import type { ICommandLoader } from "./types.js";
 import type {
   CommandContext,
   SlashCommand,
   SlashCommandActionReturn,
-} from '../ui/commands/types.js';
-import { CommandKind } from '../ui/commands/types.js';
-import { DefaultArgumentProcessor } from './prompt-processors/argumentProcessor.js';
+} from "../ui/commands/types.js";
+import { CommandKind } from "../ui/commands/types.js";
+import { DefaultArgumentProcessor } from "./prompt-processors/argumentProcessor.js";
 import type {
   IPromptProcessor,
   PromptPipelineContent,
-} from './prompt-processors/types.js';
+} from "./prompt-processors/types.js";
 import {
   SHORTHAND_ARGS_PLACEHOLDER,
   SHELL_INJECTION_TRIGGER,
   AT_FILE_INJECTION_TRIGGER,
-} from './prompt-processors/types.js';
+} from "./prompt-processors/types.js";
 import {
   ConfirmationRequiredError,
   ShellProcessor,
-} from './prompt-processors/shellProcessor.js';
-import { AtFileProcessor } from './prompt-processors/atFileProcessor.js';
+} from "./prompt-processors/shellProcessor.js";
+import { AtFileProcessor } from "./prompt-processors/atFileProcessor.js";
 
 interface CommandDirectory {
   path: string;
@@ -96,7 +96,7 @@ export class FileCommandLoader implements ICommandLoader {
     const commandDirs = this.getCommandDirectories();
     for (const dirInfo of commandDirs) {
       try {
-        const files = await glob('**/*.toml', {
+        const files = await glob("**/*.toml", {
           ...globOptions,
           cwd: dirInfo.path,
         });
@@ -120,7 +120,7 @@ export class FileCommandLoader implements ICommandLoader {
         // Add all commands without deduplication
         allCommands.push(...commands);
       } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
           console.error(
             `[FileCommandLoader] Error loading commands from ${dirInfo.path}:`,
             error,
@@ -156,7 +156,7 @@ export class FileCommandLoader implements ICommandLoader {
         .sort((a, b) => a.name.localeCompare(b.name)); // Sort alphabetically for deterministic loading
 
       const extensionCommandDirs = activeExtensions.map((ext) => ({
-        path: path.join(ext.path, 'commands'),
+        path: path.join(ext.path, "commands"),
         extensionName: ext.name,
       }));
 
@@ -180,7 +180,7 @@ export class FileCommandLoader implements ICommandLoader {
   ): Promise<SlashCommand | null> {
     let fileContent: string;
     try {
-      fileContent = await fs.readFile(filePath, 'utf-8');
+      fileContent = await fs.readFile(filePath, "utf-8");
     } catch (error: unknown) {
       console.error(
         `[FileCommandLoader] Failed to read file ${filePath}:`,
@@ -222,8 +222,8 @@ export class FileCommandLoader implements ICommandLoader {
       // Sanitize each path segment to prevent ambiguity. Since ':' is our
       // namespace separator, we replace any literal colons in filenames
       // with underscores to avoid naming conflicts.
-      .map((segment) => segment.replaceAll(':', '_'))
-      .join(':');
+      .map((segment) => segment.replaceAll(":", "_"))
+      .join(":");
 
     // Add extension name tag for extension commands
     const defaultDescription = `Custom command from ${path.basename(filePath)}`;
@@ -274,7 +274,7 @@ export class FileCommandLoader implements ICommandLoader {
             `[FileCommandLoader] Critical error: Command '${baseCommandName}' was executed without invocation context.`,
           );
           return {
-            type: 'submit_prompt',
+            type: "submit_prompt",
             content: [{ text: validDef.prompt }], // Fallback to unprocessed prompt
           };
         }
@@ -291,7 +291,7 @@ export class FileCommandLoader implements ICommandLoader {
           }
 
           return {
-            type: 'submit_prompt',
+            type: "submit_prompt",
             content: processedContent,
           };
         } catch (e) {
@@ -299,7 +299,7 @@ export class FileCommandLoader implements ICommandLoader {
           if (e instanceof ConfirmationRequiredError) {
             // Halt and request confirmation from the UI layer.
             return {
-              type: 'confirm_shell_commands',
+              type: "confirm_shell_commands",
               commandsToConfirm: e.commandsToConfirm,
               originalInvocation: {
                 raw: context.invocation.raw,

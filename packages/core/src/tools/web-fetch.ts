@@ -8,25 +8,21 @@ import type {
   ToolCallConfirmationDetails,
   ToolInvocation,
   ToolResult,
-} from './tools.js';
+} from "./tools.js";
 import {
   BaseDeclarativeTool,
   BaseToolInvocation,
   Kind,
   ToolConfirmationOutcome,
-} from './tools.js';
-import { ToolErrorType } from './tool-error.js';
-import { getErrorMessage } from '../utils/errors.js';
-import type { Config } from '../config/config.js';
-import { ApprovalMode, DEFAULT_GEMINI_FLASH_MODEL } from '../config/config.js';
-import { getResponseText } from '../utils/partUtils.js';
-import { fetchWithTimeout, isPrivateIp } from '../utils/fetch.js';
-import { convert } from 'html-to-text';
-import { ProxyAgent, setGlobalDispatcher } from 'undici';
-import {
-  logWebFetchFallbackAttempt,
-  WebFetchFallbackAttemptEvent,
-} from '../telemetry/index.js';
+} from "./tools.js";
+import { ToolErrorType } from "./tool-error.js";
+import { getErrorMessage } from "../utils/errors.js";
+import type { Config } from "../config/config.js";
+import { ApprovalMode, DEFAULT_KAIDEX_FLASH_MODEL } from "../config/config.js";
+import { getResponseText } from "../utils/partUtils.js";
+import { fetchWithTimeout, isPrivateIp } from "../utils/fetch.js";
+import { convert } from "html-to-text";
+import { ProxyAgent, setGlobalDispatcher } from "undici";
 
 const URL_FETCH_TIMEOUT_MS = 10000;
 const MAX_CONTENT_LENGTH = 100000;
@@ -85,10 +81,10 @@ class WebFetchToolInvocation extends BaseToolInvocation<
     let url = urls[0];
 
     // Convert GitHub blob URL to raw URL
-    if (url.includes('github.com') && url.includes('/blob/')) {
+    if (url.includes("github.com") && url.includes("/blob/")) {
       url = url
-        .replace('github.com', 'raw.githubusercontent.com')
-        .replace('/blob/', '/');
+        .replace("github.com", "raw.githubusercontent.com")
+        .replace("/blob/", "/");
     }
 
     try {
@@ -102,12 +98,12 @@ class WebFetchToolInvocation extends BaseToolInvocation<
       const textContent = convert(html, {
         wordwrap: false,
         selectors: [
-          { selector: 'a', options: { ignoreHref: true } },
-          { selector: 'img', format: 'skip' },
+          { selector: "a", options: { ignoreHref: true } },
+          { selector: "img", format: "skip" },
         ],
       }).substring(0, MAX_CONTENT_LENGTH);
 
-      const geminiClient = this.config.getGeminiClient();
+      const geminiClient = this.config.getKaiDexClient();
       const fallbackPrompt = `The user requested the following: "${this.params.prompt}".
 
 I was unable to access the URL directly. Instead, I have fetched the raw content of the page. Please use the following content to answer the request. Do not attempt to access the URL again.
@@ -117,12 +113,12 @@ ${textContent}
 ---
 `;
       const result = await geminiClient.generateContent(
-        [{ role: 'user', parts: [{ text: fallbackPrompt }] }],
+        [{ role: "user", parts: [{ text: fallbackPrompt }] }],
         {},
         signal,
-        DEFAULT_GEMINI_FLASH_MODEL,
+        DEFAULT_KAIDEX_FLASH_MODEL,
       );
-      const resultText = getResponseText(result) || '';
+      const resultText = getResponseText(result as any) || "";
       return {
         llmContent: resultText,
         returnDisplay: `Content for ${url} processed using fallback fetch.`,
@@ -144,7 +140,7 @@ ${textContent}
   getDescription(): string {
     const displayPrompt =
       this.params.prompt.length > 100
-        ? this.params.prompt.substring(0, 97) + '...'
+        ? this.params.prompt.substring(0, 97) + "..."
         : this.params.prompt;
     return `Processing URLs and instructions from prompt: "${displayPrompt}"`;
   }
@@ -159,16 +155,16 @@ ${textContent}
     // Perform GitHub URL conversion here to differentiate between user-provided
     // URL and the actual URL to be fetched.
     const urls = extractUrls(this.params.prompt).map((url) => {
-      if (url.includes('github.com') && url.includes('/blob/')) {
+      if (url.includes("github.com") && url.includes("/blob/")) {
         return url
-          .replace('github.com', 'raw.githubusercontent.com')
-          .replace('/blob/', '/');
+          .replace("github.com", "raw.githubusercontent.com")
+          .replace("/blob/", "/");
       }
       return url;
     });
 
     const confirmationDetails: ToolCallConfirmationDetails = {
-      type: 'info',
+      type: "info",
       title: `Confirm Web Fetch`,
       prompt: this.params.prompt,
       urls,
@@ -188,21 +184,17 @@ ${textContent}
     const isPrivate = isPrivateIp(url);
 
     if (isPrivate) {
-      logWebFetchFallbackAttempt(
-        this.config,
-        new WebFetchFallbackAttemptEvent('private_ip'),
-      );
       return this.executeFallback(signal);
     }
 
-    const geminiClient = this.config.getGeminiClient();
+    const geminiClient = this.config.getKaiDexClient();
 
     try {
       const response = await geminiClient.generateContent(
-        [{ role: 'user', parts: [{ text: userPrompt }] }],
+        [{ role: "user", parts: [{ text: userPrompt }] }],
         { tools: [{ urlContext: {} }] },
         signal, // Pass signal
-        DEFAULT_GEMINI_FLASH_MODEL,
+        DEFAULT_KAIDEX_FLASH_MODEL,
       );
 
       console.debug(
@@ -213,9 +205,11 @@ ${textContent}
         JSON.stringify(response, null, 2),
       );
 
-      let responseText = getResponseText(response) || '';
-      const urlContextMeta = response.candidates?.[0]?.urlContextMetadata;
-      const groundingMetadata = response.candidates?.[0]?.groundingMetadata;
+      let responseText = getResponseText(response as any) || "";
+      const urlContextMeta = (response as any).candidates?.[0]
+        ?.urlContextMetadata;
+      const groundingMetadata = (response as any).candidates?.[0]
+        ?.groundingMetadata;
       const sources = groundingMetadata?.groundingChunks as
         | GroundingChunkItem[]
         | undefined;
@@ -231,9 +225,11 @@ ${textContent}
         urlContextMeta.urlMetadata.length > 0
       ) {
         const allStatuses = urlContextMeta.urlMetadata.map(
-          (m) => m.urlRetrievalStatus,
+          (m: any) => m.urlRetrievalStatus,
         );
-        if (allStatuses.every((s) => s !== 'URL_RETRIEVAL_STATUS_SUCCESS')) {
+        if (
+          allStatuses.every((s: any) => s !== "URL_RETRIEVAL_STATUS_SUCCESS")
+        ) {
           processingError = true;
         }
       } else if (!responseText.trim() && !sources?.length) {
@@ -251,18 +247,14 @@ ${textContent}
       }
 
       if (processingError) {
-        logWebFetchFallbackAttempt(
-          this.config,
-          new WebFetchFallbackAttemptEvent('primary_failed'),
-        );
         return this.executeFallback(signal);
       }
 
       const sourceListFormatted: string[] = [];
       if (sources && sources.length > 0) {
         sources.forEach((source: GroundingChunkItem, index: number) => {
-          const title = source.web?.title || 'Untitled';
-          const uri = source.web?.uri || 'Unknown URI'; // Fallback if URI is missing
+          const title = source.web?.title || "Untitled";
+          const uri = source.web?.uri || "Unknown URI"; // Fallback if URI is missing
           sourceListFormatted.push(`[${index + 1}] ${title} (${uri})`);
         });
 
@@ -272,7 +264,7 @@ ${textContent}
             if (support.segment && support.groundingChunkIndices) {
               const citationMarker = support.groundingChunkIndices
                 .map((chunkIndex: number) => `[${chunkIndex + 1}]`)
-                .join('');
+                .join("");
               insertions.push({
                 index: support.segment.endIndex,
                 marker: citationMarker,
@@ -281,18 +273,18 @@ ${textContent}
           });
 
           insertions.sort((a, b) => b.index - a.index);
-          const responseChars = responseText.split('');
+          const responseChars = responseText.split("");
           insertions.forEach((insertion) => {
             responseChars.splice(insertion.index, 0, insertion.marker);
           });
-          responseText = responseChars.join('');
+          responseText = responseChars.join("");
         }
 
         if (sourceListFormatted.length > 0) {
           responseText += `
 
 Sources:
-${sourceListFormatted.join('\n')}`;
+${sourceListFormatted.join("\n")}`;
         }
       }
 
@@ -332,12 +324,12 @@ export class WebFetchTool extends BaseDeclarativeTool<
   WebFetchToolParams,
   ToolResult
 > {
-  static readonly Name: string = 'web_fetch';
+  static readonly Name: string = "web_fetch";
 
   constructor(private readonly config: Config) {
     super(
       WebFetchTool.Name,
-      'WebFetch',
+      "WebFetch",
       "Processes content from URL(s), including local and private network addresses (e.g., localhost), embedded in a prompt. Include up to 20 URLs and instructions (e.g., summarize, extract specific data) directly in the 'prompt' parameter.",
       Kind.Fetch,
       {
@@ -345,11 +337,11 @@ export class WebFetchTool extends BaseDeclarativeTool<
           prompt: {
             description:
               'A comprehensive prompt that includes the URL(s) (up to 20) to fetch and specific instructions on how to process their content (e.g., "Summarize https://example.com/article and extract key points from https://another.com/data"). Must contain as least one URL starting with http:// or https://.',
-            type: 'string',
+            type: "string",
           },
         },
-        required: ['prompt'],
-        type: 'object',
+        required: ["prompt"],
+        type: "object",
       },
     );
     const proxy = config.getProxy();
@@ -361,12 +353,12 @@ export class WebFetchTool extends BaseDeclarativeTool<
   protected override validateToolParamValues(
     params: WebFetchToolParams,
   ): string | null {
-    if (!params.prompt || params.prompt.trim() === '') {
+    if (!params.prompt || params.prompt.trim() === "") {
       return "The 'prompt' parameter cannot be empty and must contain URL(s) and instructions.";
     }
     if (
-      !params.prompt.includes('http://') &&
-      !params.prompt.includes('https://')
+      !params.prompt.includes("http://") &&
+      !params.prompt.includes("https://")
     ) {
       return "The 'prompt' must contain at least one valid URL (starting with http:// or https://).";
     }

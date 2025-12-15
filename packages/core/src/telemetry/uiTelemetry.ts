@@ -4,24 +4,24 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { EventEmitter } from 'node:events';
+import { EventEmitter } from "node:events";
 import {
   EVENT_API_ERROR,
   EVENT_API_RESPONSE,
   EVENT_TOOL_CALL,
-} from './types.js';
+} from "./constants.js";
 
-import { ToolCallDecision } from './tool-call-decision.js';
+import { ToolCallDecision } from "./tool-call-decision.js";
 import type {
   ApiErrorEvent,
   ApiResponseEvent,
   ToolCallEvent,
-} from './types.js';
+} from "./types.js";
 
 export type UiEvent =
-  | (ApiResponseEvent & { 'event.name': typeof EVENT_API_RESPONSE })
-  | (ApiErrorEvent & { 'event.name': typeof EVENT_API_ERROR })
-  | (ToolCallEvent & { 'event.name': typeof EVENT_TOOL_CALL });
+  | (ApiResponseEvent & { "event.name": typeof EVENT_API_RESPONSE })
+  | (ApiErrorEvent & { "event.name": typeof EVENT_API_ERROR })
+  | (ToolCallEvent & { "event.name": typeof EVENT_TOOL_CALL });
 
 export interface ToolCallStats {
   count: number;
@@ -115,7 +115,7 @@ export class UiTelemetryService extends EventEmitter {
   #lastPromptTokenCount = 0;
 
   addEvent(event: UiEvent) {
-    switch (event['event.name']) {
+    switch (event["event.name"]) {
       case EVENT_API_RESPONSE:
         this.processApiResponse(event);
         break;
@@ -130,7 +130,7 @@ export class UiTelemetryService extends EventEmitter {
         return;
     }
 
-    this.emit('update', {
+    this.emit("update", {
       metrics: this.#metrics,
       lastPromptTokenCount: this.#lastPromptTokenCount,
     });
@@ -144,9 +144,9 @@ export class UiTelemetryService extends EventEmitter {
     return this.#lastPromptTokenCount;
   }
 
-  setLastPromptTokenCount(lastPromptTokenCount: number): void {
-    this.#lastPromptTokenCount = lastPromptTokenCount;
-    this.emit('update', {
+  resetLastPromptTokenCount(): void {
+    this.#lastPromptTokenCount = 0;
+    this.emit("update", {
       metrics: this.#metrics,
       lastPromptTokenCount: this.#lastPromptTokenCount,
     });
@@ -160,7 +160,26 @@ export class UiTelemetryService extends EventEmitter {
   }
 
   private processApiResponse(event: ApiResponseEvent) {
+    const debugLog = (msg: string) => {
+      if (!process.env["DEBUG_CHECKNEXTSPEAKER"]) return;
+      const fs = require("fs");
+      if (!(global as any).__kaidex_debug_log_file) {
+        const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+        (global as any).__kaidex_debug_log_file =
+          `/tmp/kaidex_checknext_${timestamp}.log`;
+      }
+      try {
+        fs.appendFileSync((global as any).__kaidex_debug_log_file, msg + "\n");
+      } catch (e) {
+        // Silently fail
+      }
+    };
+
     const modelMetrics = this.getOrCreateModelMetrics(event.model);
+
+    debugLog(
+      `🔢 [${new Date().toISOString()}] TOKEN_TELEMETRY_PROCESS_API_RESPONSE: input_token_count=${event.input_token_count}, output_token_count=${event.output_token_count}, total_token_count=${event.total_token_count}`,
+    );
 
     modelMetrics.api.totalRequests++;
     modelMetrics.api.totalLatencyMs += event.duration_ms;
@@ -171,6 +190,11 @@ export class UiTelemetryService extends EventEmitter {
     modelMetrics.tokens.cached += event.cached_content_token_count;
     modelMetrics.tokens.thoughts += event.thoughts_token_count;
     modelMetrics.tokens.tool += event.tool_token_count;
+
+    this.#lastPromptTokenCount = event.input_token_count;
+    debugLog(
+      `🔢 [${new Date().toISOString()}] TOKEN_TELEMETRY_STORED: lastPromptTokenCount=${this.#lastPromptTokenCount}`,
+    );
   }
 
   private processApiError(event: ApiErrorEvent) {
@@ -222,11 +246,11 @@ export class UiTelemetryService extends EventEmitter {
 
     // Aggregate line count data from metadata
     if (event.metadata) {
-      if (event.metadata['model_added_lines'] !== undefined) {
-        files.totalLinesAdded += event.metadata['model_added_lines'];
+      if (event.metadata["model_added_lines"] !== undefined) {
+        files.totalLinesAdded += event.metadata["model_added_lines"];
       }
-      if (event.metadata['model_removed_lines'] !== undefined) {
-        files.totalLinesRemoved += event.metadata['model_removed_lines'];
+      if (event.metadata["model_removed_lines"] !== undefined) {
+        files.totalLinesRemoved += event.metadata["model_removed_lines"];
       }
     }
   }

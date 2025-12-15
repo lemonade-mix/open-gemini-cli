@@ -4,17 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { Config, MCPServerConfig } from '../config/config.js';
-import type { ToolRegistry } from './tool-registry.js';
-import type { PromptRegistry } from '../prompts/prompt-registry.js';
+import type { Config, MCPServerConfig } from "../config/config.js";
+import type { ToolRegistry } from "./tool-registry.js";
+import type { PromptRegistry } from "../prompts/prompt-registry.js";
 import {
   McpClient,
   MCPDiscoveryState,
   populateMcpServerCommand,
-} from './mcp-client.js';
-import { getErrorMessage } from '../utils/errors.js';
-import type { EventEmitter } from 'node:events';
-import type { WorkspaceContext } from '../utils/workspaceContext.js';
+} from "./mcp-client.js";
+import { getErrorMessage } from "../utils/errors.js";
+import type { EventEmitter } from "node:events";
+import type { WorkspaceContext } from "../utils/workspaceContext.js";
 
 /**
  * Manages the lifecycle of multiple MCP clients, including local child processes.
@@ -68,7 +68,7 @@ export class McpClientManager {
 
     this.discoveryState = MCPDiscoveryState.IN_PROGRESS;
 
-    this.eventEmitter?.emit('mcp-client-update', this.clients);
+    this.eventEmitter?.emit("mcp-client-update", this.clients);
     const discoveryPromises = Object.entries(servers).map(
       async ([name, config]) => {
         const client = new McpClient(
@@ -81,13 +81,13 @@ export class McpClientManager {
         );
         this.clients.set(name, client);
 
-        this.eventEmitter?.emit('mcp-client-update', this.clients);
+        this.eventEmitter?.emit("mcp-client-update", this.clients);
         try {
           await client.connect();
           await client.discover(cliConfig);
-          this.eventEmitter?.emit('mcp-client-update', this.clients);
+          this.eventEmitter?.emit("mcp-client-update", this.clients);
         } catch (error) {
-          this.eventEmitter?.emit('mcp-client-update', this.clients);
+          this.eventEmitter?.emit("mcp-client-update", this.clients);
           // Log the error but don't let a single failed server stop the others
           console.error(
             `Error during discovery for server '${name}': ${getErrorMessage(

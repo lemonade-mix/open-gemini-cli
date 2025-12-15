@@ -11,23 +11,31 @@ import type {
   EmbedContentParameters,
   EmbedContentResponse,
   GenerateContentParameters,
-  GenerateContentResponseUsageMetadata,
   GenerateContentResponse,
-} from '@google/genai';
+} from "./contentGenerator.js";
+
+// Usage metadata interface for logging
+export interface GenerateContentResponseUsageMetadata {
+  promptTokenCount?: number;
+  candidatesTokenCount?: number;
+  totalTokenCount?: number;
+  cachedContentTokenCount?: number;
+  thoughtsTokenCount?: number;
+  toolUsePromptTokenCount?: number;
+}
 import {
   ApiRequestEvent,
   ApiResponseEvent,
   ApiErrorEvent,
-} from '../telemetry/types.js';
-import type { Config } from '../config/config.js';
+} from "../telemetry/types.js";
+import type { Config } from "../config/config.js";
 import {
   logApiError,
   logApiRequest,
   logApiResponse,
-} from '../telemetry/loggers.js';
-import type { ContentGenerator } from './contentGenerator.js';
-import { toContents } from '../code_assist/converter.js';
-import { isStructuredError } from '../utils/quotaErrorDetection.js';
+} from "../telemetry/loggers.js";
+import type { ContentGenerator } from "./contentGenerator.js";
+import { isStructuredError } from "../utils/quotaErrorDetection.js";
 
 interface StructuredError {
   status: number;
@@ -85,7 +93,7 @@ export class LoggingContentGenerator implements ContentGenerator {
     prompt_id: string,
   ): void {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    const errorType = error instanceof Error ? error.name : 'unknown';
+    const errorType = error instanceof Error ? error.name : "unknown";
 
     logApiError(
       this.config,
@@ -108,46 +116,48 @@ export class LoggingContentGenerator implements ContentGenerator {
     userPromptId: string,
   ): Promise<GenerateContentResponse> {
     const startTime = Date.now();
-    this.logApiRequest(toContents(req.contents), req.model, userPromptId);
+    const modelName = req.model || "unknown";
+    this.logApiRequest(req.contents, modelName, userPromptId);
     try {
       const response = await this.wrapped.generateContent(req, userPromptId);
       const durationMs = Date.now() - startTime;
       this._logApiResponse(
         durationMs,
-        response.modelVersion || req.model,
+        modelName,
         userPromptId,
-        response.usageMetadata,
+        (response as any).usageMetadata,
         JSON.stringify(response),
       );
       return response;
     } catch (error) {
       const durationMs = Date.now() - startTime;
-      this._logApiError(durationMs, error, req.model, userPromptId);
+      this._logApiError(durationMs, error, modelName, userPromptId);
       throw error;
     }
   }
 
-  async generateContentStream(
+  async *generateContentStream(
     req: GenerateContentParameters,
     userPromptId: string,
-  ): Promise<AsyncGenerator<GenerateContentResponse>> {
+  ): AsyncGenerator<GenerateContentResponse, any, any> {
     const startTime = Date.now();
-    this.logApiRequest(toContents(req.contents), req.model, userPromptId);
+    const modelName = req.model || "unknown";
+    this.logApiRequest(req.contents, modelName, userPromptId);
 
     let stream: AsyncGenerator<GenerateContentResponse>;
     try {
-      stream = await this.wrapped.generateContentStream(req, userPromptId);
+      stream = this.wrapped.generateContentStream(req, userPromptId);
     } catch (error) {
       const durationMs = Date.now() - startTime;
-      this._logApiError(durationMs, error, req.model, userPromptId);
+      this._logApiError(durationMs, error, modelName, userPromptId);
       throw error;
     }
 
-    return this.loggingStreamWrapper(
+    yield* this.loggingStreamWrapper(
       stream,
       startTime,
       userPromptId,
-      req.model,
+      modelName,
     );
   }
 
@@ -155,7 +165,7 @@ export class LoggingContentGenerator implements ContentGenerator {
     stream: AsyncGenerator<GenerateContentResponse>,
     startTime: number,
     userPromptId: string,
-    model: string,
+    modelName: string,
   ): AsyncGenerator<GenerateContentResponse> {
     const responses: GenerateContentResponse[] = [];
 
@@ -163,8 +173,8 @@ export class LoggingContentGenerator implements ContentGenerator {
     try {
       for await (const response of stream) {
         responses.push(response);
-        if (response.usageMetadata) {
-          lastUsageMetadata = response.usageMetadata;
+        if ((response as any).usageMetadata) {
+          lastUsageMetadata = (response as any).usageMetadata;
         }
         yield response;
       }
@@ -172,19 +182,14 @@ export class LoggingContentGenerator implements ContentGenerator {
       const durationMs = Date.now() - startTime;
       this._logApiResponse(
         durationMs,
-        responses[0]?.modelVersion || model,
+        modelName,
         userPromptId,
         lastUsageMetadata,
         JSON.stringify(responses),
       );
     } catch (error) {
       const durationMs = Date.now() - startTime;
-      this._logApiError(
-        durationMs,
-        error,
-        responses[0]?.modelVersion || model,
-        userPromptId,
-      );
+      this._logApiError(durationMs, error, modelName, userPromptId);
       throw error;
     }
   }
@@ -197,5 +202,17 @@ export class LoggingContentGenerator implements ContentGenerator {
     req: EmbedContentParameters,
   ): Promise<EmbedContentResponse> {
     return this.wrapped.embedContent(req);
+  }
+
+  // OpenAI-compatible primary interface methods
+  chatCompletion(request: any, userPromptId: string): Promise<any> {
+    return this.wrapped.chatCompletion(request, userPromptId);
+  }
+
+  chatCompletionStream(
+    request: any,
+    userPromptId: string,
+  ): AsyncGenerator<any> {
+    return this.wrapped.chatCompletionStream(request, userPromptId);
   }
 }

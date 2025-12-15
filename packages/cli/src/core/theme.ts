@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { themeManager } from '../ui/themes/theme-manager.js';
-import { type LoadedSettings } from '../config/settings.js';
+import { themeManager } from "../ui/themes/theme-manager.js";
+import { type LoadedSettings } from "../config/settings.js";
 
 /**
  * Validates the configured theme.

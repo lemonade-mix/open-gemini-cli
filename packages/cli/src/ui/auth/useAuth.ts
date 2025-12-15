@@ -4,17 +4,22 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useCallback } from 'react';
-import type { LoadedSettings } from '../../config/settings.js';
-import { AuthType, type Config } from '@google/gemini-cli-core';
-import { getErrorMessage } from '@google/gemini-cli-core';
-import { AuthState } from '../types.js';
-import { validateAuthMethod } from '../../config/auth.js';
+import { useState, useEffect, useCallback } from "react";
+import type { LoadedSettings } from "../../config/settings.js";
+import { AuthType, type Config } from "@google/kaidex-cli-core";
+import { getErrorMessage } from "@google/kaidex-cli-core";
+import { AuthState } from "../types.js";
+import { validateAuthMethod } from "../../config/auth.js";
 
 export function validateAuthMethodWithSettings(
   authType: AuthType,
   settings: LoadedSettings,
 ): string | null {
+  // Bypass auth validation when using local LLM
+  if (process.env["BYPASS_AUTH"] === "true") {
+    return null; // Always valid for local usage
+  }
+
   const enforcedType = settings.merged.security?.auth?.enforcedType;
   if (enforcedType && enforcedType !== authType) {
     return `Authentication is enforced to be ${enforcedType}, but you are currently using ${authType}.`;
@@ -26,10 +31,13 @@ export function validateAuthMethodWithSettings(
 }
 
 export const useAuthCommand = (settings: LoadedSettings, config: Config) => {
-  const [authState, setAuthState] = useState<AuthState>(
-    AuthState.Unauthenticated,
-  );
+  // Start in authenticated state when bypassing auth
+  const initialAuthState =
+    process.env["BYPASS_AUTH"] === "true"
+      ? AuthState.Authenticated
+      : AuthState.Unauthenticated;
 
+  const [authState, setAuthState] = useState<AuthState>(initialAuthState);
   const [authError, setAuthError] = useState<string | null>(null);
 
   const onAuthError = useCallback(
@@ -48,12 +56,12 @@ export const useAuthCommand = (settings: LoadedSettings, config: Config) => {
 
       const authType = settings.merged.security?.auth?.selectedType;
       if (!authType) {
-        if (process.env['GEMINI_API_KEY']) {
+        if (process.env["GEMINI_API_KEY"]) {
           onAuthError(
             'Existing API key detected (GEMINI_API_KEY). Select "Gemini API Key" option to use it.',
           );
         } else {
-          onAuthError('No authentication method selected.');
+          onAuthError("No authentication method selected.");
         }
         return;
       }
@@ -63,14 +71,14 @@ export const useAuthCommand = (settings: LoadedSettings, config: Config) => {
         return;
       }
 
-      const defaultAuthType = process.env['GEMINI_DEFAULT_AUTH_TYPE'];
+      const defaultAuthType = process.env["GEMINI_DEFAULT_AUTH_TYPE"];
       if (
         defaultAuthType &&
         !Object.values(AuthType).includes(defaultAuthType as AuthType)
       ) {
         onAuthError(
           `Invalid value for GEMINI_DEFAULT_AUTH_TYPE: "${defaultAuthType}". ` +
-            `Valid values are: ${Object.values(AuthType).join(', ')}.`,
+            `Valid values are: ${Object.values(AuthType).join(", ")}.`,
         );
         return;
       }

@@ -8,14 +8,14 @@ import type {
   Settings,
   SettingScope,
   LoadedSettings,
-} from '../config/settings.js';
+} from "../config/settings.js";
 import type {
   SettingDefinition,
   SettingsSchema,
   SettingsType,
   SettingsValue,
-} from '../config/settingsSchema.js';
-import { getSettingsSchema } from '../config/settingsSchema.js';
+} from "../config/settingsSchema.js";
+import { getSettingsSchema } from "../config/settingsSchema.js";
 
 // The schema is now nested, but many parts of the UI and logic work better
 // with a flattened structure and dot-notation keys. This section flattens the
@@ -23,7 +23,7 @@ import { getSettingsSchema } from '../config/settingsSchema.js';
 
 type FlattenedSchema = Record<string, SettingDefinition & { key: string }>;
 
-function flattenSchema(schema: SettingsSchema, prefix = ''): FlattenedSchema {
+function flattenSchema(schema: SettingsSchema, prefix = ""): FlattenedSchema {
   let result: FlattenedSchema = {};
   for (const key in schema) {
     const newKey = prefix ? `${prefix}.${key}` : key;
@@ -120,7 +120,7 @@ export function getNestedValue(
   if (rest.length === 0) {
     return value;
   }
-  if (value && typeof value === 'object' && value !== null) {
+  if (value && typeof value === "object" && value !== null) {
     return getNestedValue(value as Record<string, unknown>, rest);
   }
   return undefined;
@@ -140,7 +140,7 @@ export function getEffectiveValue(
     return undefined;
   }
 
-  const path = key.split('.');
+  const path = key.split(".");
 
   // Check the current scope's settings first
   let value = getNestedValue(settings as Record<string, unknown>, path);
@@ -276,12 +276,12 @@ export function getSettingValue(
 
   const value = getEffectiveValue(key, settings, mergedSettings);
   // Ensure we return a boolean value, converting from the more general type
-  if (typeof value === 'boolean') {
+  if (typeof value === "boolean") {
     return value;
   }
   // Fall back to default value, ensuring it's a boolean
   const defaultValue = definition.default;
-  if (typeof defaultValue === 'boolean') {
+  if (typeof defaultValue === "boolean") {
     return defaultValue;
   }
   return false; // Final fallback
@@ -293,7 +293,7 @@ export function getSettingValue(
 export function isSettingModified(key: string, value: boolean): boolean {
   const defaultValue = getDefaultValue(key);
   // Handle type comparison properly
-  if (typeof defaultValue === 'boolean') {
+  if (typeof defaultValue === "boolean") {
     return value !== defaultValue;
   }
   // If default is not a boolean, consider it modified if value is true
@@ -307,7 +307,7 @@ export function settingExistsInScope(
   key: string,
   scopeSettings: Settings,
 ): boolean {
-  const path = key.split('.');
+  const path = key.split(".");
   const value = getNestedValue(scopeSettings as Record<string, unknown>, path);
   return value !== undefined;
 }
@@ -330,7 +330,7 @@ function setNestedValue(
     return obj;
   }
 
-  if (!obj[first] || typeof obj[first] !== 'object') {
+  if (!obj[first] || typeof obj[first] !== "object") {
     obj[first] = {};
   }
 
@@ -346,7 +346,7 @@ export function setPendingSettingValue(
   value: boolean,
   pendingSettings: Settings,
 ): Settings {
-  const path = key.split('.');
+  const path = key.split(".");
   const newSettings = JSON.parse(JSON.stringify(pendingSettings));
   setNestedValue(newSettings, path, value);
   return newSettings;
@@ -360,7 +360,7 @@ export function setPendingSettingValueAny(
   value: SettingsValue,
   pendingSettings: Settings,
 ): Settings {
-  const path = key.split('.');
+  const path = key.split(".");
   const newSettings = structuredClone(pendingSettings);
   setNestedValue(newSettings, path, value);
   return newSettings;
@@ -394,7 +394,7 @@ export function saveModifiedSettings(
   scope: SettingScope,
 ): void {
   modifiedSettings.forEach((settingKey) => {
-    const path = settingKey.split('.');
+    const path = settingKey.split(".");
     const value = getNestedValue(
       pendingSettings as Record<string, unknown>,
       path,
@@ -444,7 +444,7 @@ export function getDisplayValue(
 
   let valueString = String(value);
 
-  if (definition?.type === 'enum' && definition.options) {
+  if (definition?.type === "enum" && definition.options) {
     const option = definition.options?.find((option) => option.value === value);
     valueString = option?.label ?? `${value}`;
   }

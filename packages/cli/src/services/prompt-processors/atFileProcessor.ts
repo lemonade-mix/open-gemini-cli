@@ -7,15 +7,15 @@
 import {
   flatMapTextParts,
   readPathFromWorkspace,
-} from '@google/gemini-cli-core';
-import type { CommandContext } from '../../ui/commands/types.js';
-import { MessageType } from '../../ui/types.js';
+} from "@google/kaidex-cli-core";
+import type { CommandContext } from "../../ui/commands/types.js";
+import { MessageType } from "../../ui/types.js";
 import {
   AT_FILE_INJECTION_TRIGGER,
   type IPromptProcessor,
   type PromptPipelineContent,
-} from './types.js';
-import { extractInjections } from './injectionParser.js';
+} from "./types.js";
+import { extractInjections } from "./injectionParser.js";
 
 export class AtFileProcessor implements IPromptProcessor {
   constructor(private readonly commandName?: string) {}
@@ -56,7 +56,7 @@ export class AtFileProcessor implements IPromptProcessor {
         try {
           const fileContentParts = await readPathFromWorkspace(pathStr, config);
           if (fileContentParts.length === 0) {
-            const uiMessage = `File '@{${pathStr}}' was ignored by .gitignore or .geminiignore and was not included in the prompt.`;
+            const uiMessage = `File '@{${pathStr}}' was ignored by .gitignore or .kaidexignore and was not included in the prompt.`;
             context.ui.addItem(
               { type: MessageType.INFO, text: uiMessage },
               Date.now(),

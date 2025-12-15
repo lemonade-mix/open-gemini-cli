@@ -4,21 +4,21 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Storage } from '@google-cloud/storage';
-import { gzipSync, gunzipSync } from 'node:zlib';
-import * as tar from 'tar';
-import * as fse from 'fs-extra';
-import { promises as fsPromises, createReadStream } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import type { Task as SDKTask } from '@a2a-js/sdk';
-import type { TaskStore } from '@a2a-js/sdk/server';
-import { logger } from '../utils/logger.js';
-import { setTargetDir } from '../config/config.js';
-import { getPersistedState, type PersistedTaskMetadata } from '../types.js';
-import { v4 as uuidv4 } from 'uuid';
+import { Storage } from "@google-cloud/storage";
+import { gzipSync, gunzipSync } from "node:zlib";
+import * as tar from "tar";
+import * as fse from "fs-extra";
+import { promises as fsPromises, createReadStream } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type { Task as SDKTask } from "@a2a-js/sdk";
+import type { TaskStore } from "@a2a-js/sdk/server";
+import { logger } from "../utils/logger.js";
+import { setTargetDir } from "../config/config.js";
+import { getPersistedState, type PersistedTaskMetadata } from "../types.js";
+import { v4 as uuidv4 } from "uuid";
 
-type ObjectType = 'metadata' | 'workspace';
+type ObjectType = "metadata" | "workspace";
 
 const getTmpArchiveFilename = (taskId: string): string =>
   `task-${taskId}-workspace-${uuidv4()}.tar.gz`;
@@ -30,7 +30,7 @@ export class GCSTaskStore implements TaskStore {
 
   constructor(bucketName: string) {
     if (!bucketName) {
-      throw new Error('GCS bucket name is required.');
+      throw new Error("GCS bucket name is required.");
     }
     this.storage = new Storage();
     this.bucketName = bucketName;
@@ -93,8 +93,8 @@ export class GCSTaskStore implements TaskStore {
     }
     const workDir = process.cwd();
 
-    const metadataObjectPath = this.getObjectPath(taskId, 'metadata');
-    const workspaceObjectPath = this.getObjectPath(taskId, 'workspace');
+    const metadataObjectPath = this.getObjectPath(taskId, "metadata");
+    const workspaceObjectPath = this.getObjectPath(taskId, "workspace");
 
     const dataToStore = task.metadata;
 
@@ -105,7 +105,7 @@ export class GCSTaskStore implements TaskStore {
         .bucket(this.bucketName)
         .file(metadataObjectPath);
       await metadataFile.save(compressedMetadata, {
-        contentType: 'application/gzip',
+        contentType: "application/gzip",
       });
       logger.info(
         `Task ${taskId} metadata saved to GCS: gs://${this.bucketName}/${metadataObjectPath}`,
@@ -137,12 +137,12 @@ export class GCSTaskStore implements TaskStore {
               .file(workspaceObjectPath);
             const sourceStream = createReadStream(tmpArchiveFile);
             const destStream = workspaceFile.createWriteStream({
-              contentType: 'application/gzip',
+              contentType: "application/gzip",
               resumable: true,
             });
 
             await new Promise<void>((resolve, reject) => {
-              sourceStream.on('error', (err) => {
+              sourceStream.on("error", (err) => {
                 logger.error(
                   `Error in source stream for ${tmpArchiveFile}:`,
                   err,
@@ -154,7 +154,7 @@ export class GCSTaskStore implements TaskStore {
                 reject(err);
               });
 
-              destStream.on('error', (err) => {
+              destStream.on("error", (err) => {
                 logger.error(
                   `Error in GCS dest stream for ${workspaceObjectPath}:`,
                   err,
@@ -162,7 +162,7 @@ export class GCSTaskStore implements TaskStore {
                 reject(err);
               });
 
-              destStream.on('finish', () => {
+              destStream.on("finish", () => {
                 logger.info(
                   `GCS destStream finished for ${workspaceObjectPath}`,
                 );
@@ -221,8 +221,8 @@ export class GCSTaskStore implements TaskStore {
 
   async load(taskId: string): Promise<SDKTask | undefined> {
     await this.ensureBucketInitialized();
-    const metadataObjectPath = this.getObjectPath(taskId, 'metadata');
-    const workspaceObjectPath = this.getObjectPath(taskId, 'workspace');
+    const metadataObjectPath = this.getObjectPath(taskId, "metadata");
+    const workspaceObjectPath = this.getObjectPath(taskId, "workspace");
 
     try {
       const metadataFile = this.storage
@@ -272,7 +272,7 @@ export class GCSTaskStore implements TaskStore {
       return {
         id: taskId,
         contextId: loadedMetadata._contextId || uuidv4(),
-        kind: 'task',
+        kind: "task",
         status: {
           state: persistedState._taskState,
           timestamp: new Date().toISOString(),

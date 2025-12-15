@@ -4,25 +4,19 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { Content } from '@google/genai';
-import { createHash } from 'node:crypto';
-import type { ServerGeminiStreamEvent } from '../core/turn.js';
-import { GeminiEventType } from '../core/turn.js';
-import {
-  logLoopDetected,
-  logLoopDetectionDisabled,
-} from '../telemetry/loggers.js';
-import {
-  LoopDetectedEvent,
-  LoopDetectionDisabledEvent,
-  LoopType,
-} from '../telemetry/types.js';
-import type { Config } from '../config/config.js';
-import { DEFAULT_GEMINI_FLASH_MODEL } from '../config/config.js';
+import type { Content } from "../core/contentGenerator.js";
+import { createHash } from "node:crypto";
+import type { ServerKaiDexStreamEvent } from "../core/turn.js";
+import { KaiDexEventType } from "../core/turn.js";
+import { logLoopDetected } from "../telemetry/loggers.js";
+import { LoopDetectedEvent, LoopType } from "../telemetry/types.js";
+import type { Config } from "../config/config.js";
+import { DEFAULT_KAIDEX_FLASH_MODEL } from "../config/config.js";
 import {
   isFunctionCall,
   isFunctionResponse,
-} from '../utils/messageInspectors.js';
+} from "../utils/messageInspectors.js";
+import { kaidexContentToGoogle } from "../utils/typeAdapters.js";
 
 const TOOL_CALL_LOOP_THRESHOLD = 5;
 const CONTENT_LOOP_THRESHOLD = 10;
@@ -57,31 +51,20 @@ const MIN_LLM_CHECK_INTERVAL = 5;
  */
 const MAX_LLM_CHECK_INTERVAL = 15;
 
-const LOOP_DETECTION_SYSTEM_PROMPT = `You are a sophisticated AI diagnostic agent specializing in identifying when a conversational AI is stuck in an unproductive state. Your task is to analyze the provided conversation history and determine if the assistant has ceased to make meaningful progress.
-
-An unproductive state is characterized by one or more of the following patterns over the last 5 or more assistant turns:
-
-Repetitive Actions: The assistant repeats the same tool calls or conversational responses a decent number of times. This includes simple loops (e.g., tool_A, tool_A, tool_A) and alternating patterns (e.g., tool_A, tool_B, tool_A, tool_B, ...).
-
-Cognitive Loop: The assistant seems unable to determine the next logical step. It might express confusion, repeatedly ask the same questions, or generate responses that don't logically follow from the previous turns, indicating it's stuck and not advancing the task.
-
-Crucially, differentiate between a true unproductive state and legitimate, incremental progress.
-For example, a series of 'tool_A' or 'tool_B' tool calls that make small, distinct changes to the same file (like adding docstrings to functions one by one) is considered forward progress and is NOT a loop. A loop would be repeatedly replacing the same text with the same content, or cycling between a small set of files with no net change.`;
-
 /**
  * Service for detecting and preventing infinite loops in AI responses.
  * Monitors tool call repetitions and content sentence repetitions.
  */
 export class LoopDetectionService {
   private readonly config: Config;
-  private promptId = '';
+  private promptId = "";
 
   // Tool call tracking
   private lastToolCallKey: string | null = null;
   private toolCallRepetitionCount: number = 0;
 
   // Content streaming tracking
-  private streamContentHistory = '';
+  private streamContentHistory = "";
   private contentStats = new Map<string, number[]>();
   private lastContentIndex = 0;
   private loopDetected = false;
@@ -92,28 +75,14 @@ export class LoopDetectionService {
   private llmCheckInterval = DEFAULT_LLM_CHECK_INTERVAL;
   private lastCheckTurn = 0;
 
-  // Session-level disable flag
-  private disabledForSession = false;
-
   constructor(config: Config) {
     this.config = config;
-  }
-
-  /**
-   * Disables loop detection for the current session.
-   */
-  disableForSession(): void {
-    this.disabledForSession = true;
-    logLoopDetectionDisabled(
-      this.config,
-      new LoopDetectionDisabledEvent(this.promptId),
-    );
   }
 
   private getToolCallKey(toolCall: { name: string; args: object }): string {
     const argsString = JSON.stringify(toolCall.args);
     const keyString = `${toolCall.name}:${argsString}`;
-    return createHash('sha256').update(keyString).digest('hex');
+    return createHash("sha256").update(keyString).digest("hex");
   }
 
   /**
@@ -121,19 +90,19 @@ export class LoopDetectionService {
    * @param event - The stream event to process
    * @returns true if a loop is detected, false otherwise
    */
-  addAndCheck(event: ServerGeminiStreamEvent): boolean {
-    if (this.loopDetected || this.disabledForSession) {
-      return this.loopDetected;
+  addAndCheck(event: ServerKaiDexStreamEvent): boolean {
+    if (this.loopDetected) {
+      return true;
     }
 
     switch (event.type) {
-      case GeminiEventType.ToolCallRequest:
+      case KaiDexEventType.ToolCallRequest:
         // content chanting only happens in one single stream, reset if there
         // is a tool call in between
         this.resetContentTracking();
         this.loopDetected = this.checkToolCallLoop(event.value);
         break;
-      case GeminiEventType.Content:
+      case KaiDexEventType.Content:
         this.loopDetected = this.checkContentLoop(event.value);
         break;
       default:
@@ -153,9 +122,6 @@ export class LoopDetectionService {
    * @returns A promise that resolves to `true` if a loop is detected, and `false` otherwise.
    */
   async turnStarted(signal: AbortSignal) {
-    if (this.disabledForSession) {
-      return false;
-    }
     this.turnsInCurrentPrompt++;
 
     if (
@@ -288,7 +254,7 @@ export class LoopDetectionService {
         this.lastContentIndex,
         this.lastContentIndex + CONTENT_CHUNK_SIZE,
       );
-      const chunkHash = createHash('sha256').update(currentChunk).digest('hex');
+      const chunkHash = createHash("sha256").update(currentChunk).digest("hex");
 
       if (this.isLoopDetectedForChunk(currentChunk, chunkHash)) {
         logLoopDetected(
@@ -374,7 +340,9 @@ export class LoopDetectionService {
     // until the last turn is not a function call.
     while (
       recentHistory.length > 0 &&
-      isFunctionCall(recentHistory[recentHistory.length - 1])
+      isFunctionCall(
+        kaidexContentToGoogle(recentHistory[recentHistory.length - 1]),
+      )
     ) {
       recentHistory.pop();
     }
@@ -382,7 +350,10 @@ export class LoopDetectionService {
     // A function response should follow a function call.
     // Continuously removes leading function responses from the beginning of history
     // until the first turn is not a function response.
-    while (recentHistory.length > 0 && isFunctionResponse(recentHistory[0])) {
+    while (
+      recentHistory.length > 0 &&
+      isFunctionResponse(kaidexContentToGoogle(recentHistory[0]))
+    ) {
       recentHistory.shift();
     }
 
@@ -391,54 +362,66 @@ export class LoopDetectionService {
 
   private async checkForLoopWithLLM(signal: AbortSignal) {
     const recentHistory = this.config
-      .getGeminiClient()
+      .getKaiDexClient()
       .getHistory()
       .slice(-LLM_LOOP_CHECK_HISTORY_COUNT);
 
     const trimmedHistory = this.trimRecentHistory(recentHistory);
 
-    const taskPrompt = `Please analyze the conversation history to determine the possibility that the conversation is stuck in a repetitive, non-productive state. Provide your response in the requested JSON format.`;
+    const prompt = `You are a sophisticated AI diagnostic agent specializing in identifying when a conversational AI is stuck in an unproductive state. Your task is to analyze the provided conversation history and determine if the assistant has ceased to make meaningful progress.
 
+An unproductive state is characterized by one or more of the following patterns over the last 5 or more assistant turns:
+
+Repetitive Actions: The assistant repeats the same tool calls or conversational responses a decent number of times. This includes simple loops (e.g., tool_A, tool_A, tool_A) and alternating patterns (e.g., tool_A, tool_B, tool_A, tool_B, ...).
+
+Cognitive Loop: The assistant seems unable to determine the next logical step. It might express confusion, repeatedly ask the same questions, or generate responses that don't logically follow from the previous turns, indicating it's stuck and not advancing the task.
+
+Crucially, differentiate between a true unproductive state and legitimate, incremental progress.
+For example, a series of 'tool_A' or 'tool_B' tool calls that make small, distinct changes to the same file (like adding docstrings to functions one by one) is considered forward progress and is NOT a loop. A loop would be repeatedly replacing the same text with the same content, or cycling between a small set of files with no net change.
+
+Please analyze the conversation history to determine the possibility that the conversation is stuck in a repetitive, non-productive state.`;
     const contents = [
       ...trimmedHistory,
-      { role: 'user', parts: [{ text: taskPrompt }] },
+      { role: "user", parts: [{ text: prompt }] },
     ];
     const schema: Record<string, unknown> = {
-      type: 'object',
+      type: "object",
       properties: {
         reasoning: {
-          type: 'string',
+          type: "string",
           description:
-            'Your reasoning on if the conversation is looping without forward progress.',
+            "Your reasoning on if the conversation is looping without forward progress.",
         },
         confidence: {
-          type: 'number',
+          type: "number",
           description:
-            'A number between 0.0 and 1.0 representing your confidence that the conversation is in an unproductive state.',
+            "A number between 0.0 and 1.0 representing your confidence that the conversation is in an unproductive state.",
         },
       },
-      required: ['reasoning', 'confidence'],
+      required: ["reasoning", "confidence"],
     };
     let result;
     try {
-      result = await this.config.getBaseLlmClient().generateJson({
-        contents,
-        schema,
-        model: DEFAULT_GEMINI_FLASH_MODEL,
-        systemInstruction: LOOP_DETECTION_SYSTEM_PROMPT,
-        abortSignal: signal,
-        promptId: this.promptId,
-      });
+      result = await this.config
+        .getKaiDexClient()
+        .generateJson(
+          contents,
+          schema,
+          signal,
+          DEFAULT_KAIDEX_FLASH_MODEL,
+          {},
+          "loopDetection",
+        );
     } catch (e) {
       // Do nothing, treat it as a non-loop.
       this.config.getDebugMode() ? console.error(e) : console.debug(e);
       return false;
     }
 
-    if (typeof result['confidence'] === 'number') {
-      if (result['confidence'] > 0.9) {
-        if (typeof result['reasoning'] === 'string' && result['reasoning']) {
-          console.warn(result['reasoning']);
+    if (typeof result["confidence"] === "number") {
+      if (result["confidence"] > 0.9) {
+        if (typeof result["reasoning"] === "string" && result["reasoning"]) {
+          console.warn(result["reasoning"]);
         }
         logLoopDetected(
           this.config,
@@ -449,7 +432,7 @@ export class LoopDetectionService {
         this.llmCheckInterval = Math.round(
           MIN_LLM_CHECK_INTERVAL +
             (MAX_LLM_CHECK_INTERVAL - MIN_LLM_CHECK_INTERVAL) *
-              (1 - result['confidence']),
+              (1 - result["confidence"]),
         );
       }
     }
@@ -474,7 +457,7 @@ export class LoopDetectionService {
 
   private resetContentTracking(resetHistory = true): void {
     if (resetHistory) {
-      this.streamContentHistory = '';
+      this.streamContentHistory = "";
     }
     this.contentStats.clear();
     this.lastContentIndex = 0;

@@ -4,18 +4,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import type { GeminiCLIExtension } from '@google/gemini-cli-core';
-import { getWorkspaceExtensions } from '../../config/extension.js';
-import { type LoadedSettings, SettingScope } from '../../config/settings.js';
-import process from 'node:process';
+import { useState, useEffect } from "react";
+import {
+  type Extension,
+  getWorkspaceExtensions,
+} from "../../config/extension.js";
+import { type LoadedSettings, SettingScope } from "../../config/settings.js";
+import process from "node:process";
 
 export function useWorkspaceMigration(settings: LoadedSettings) {
   const [showWorkspaceMigrationDialog, setShowWorkspaceMigrationDialog] =
     useState(false);
-  const [workspaceExtensions, setWorkspaceExtensions] = useState<
-    GeminiCLIExtension[]
-  >([]);
+  const [workspaceExtensions, setWorkspaceExtensions] = useState<Extension[]>(
+    [],
+  );
 
   useEffect(() => {
     // Default to true if not set.
@@ -30,14 +32,13 @@ export function useWorkspaceMigration(settings: LoadedSettings) {
     ) {
       setWorkspaceExtensions(extensions);
       setShowWorkspaceMigrationDialog(true);
-      console.log(settings.merged.extensions);
     }
   }, [
     settings.merged.extensions,
     settings.merged.experimental?.extensionManagement,
   ]);
 
-  const onWorkspaceMigrationDialogOpen = useCallback(() => {
+  const onWorkspaceMigrationDialogOpen = () => {
     const userSettings = settings.forScope(SettingScope.User);
     const extensionSettings = userSettings.settings.extensions || {
       disabled: [],
@@ -52,25 +53,17 @@ export function useWorkspaceMigration(settings: LoadedSettings) {
 
     extensionSettings.workspacesWithMigrationNudge =
       workspacesWithMigrationNudge;
-    settings.setValue(SettingScope.User, 'extensions', extensionSettings);
-  }, [settings]);
+    settings.setValue(SettingScope.User, "extensions", extensionSettings);
+  };
 
-  const onWorkspaceMigrationDialogClose = useCallback(() => {
+  const onWorkspaceMigrationDialogClose = () => {
     setShowWorkspaceMigrationDialog(false);
-  }, [setShowWorkspaceMigrationDialog]);
+  };
 
-  return useMemo(
-    () => ({
-      showWorkspaceMigrationDialog,
-      workspaceExtensions,
-      onWorkspaceMigrationDialogOpen,
-      onWorkspaceMigrationDialogClose,
-    }),
-    [
-      showWorkspaceMigrationDialog,
-      workspaceExtensions,
-      onWorkspaceMigrationDialogOpen,
-      onWorkspaceMigrationDialogClose,
-    ],
-  );
+  return {
+    showWorkspaceMigrationDialog,
+    workspaceExtensions,
+    onWorkspaceMigrationDialogOpen,
+    onWorkspaceMigrationDialogClose,
+  };
 }

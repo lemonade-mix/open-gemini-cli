@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { appendToLastTextPart } from '@google/gemini-cli-core';
-import type { IPromptProcessor, PromptPipelineContent } from './types.js';
-import type { CommandContext } from '../../ui/commands/types.js';
+import { appendToLastTextPart } from "@google/kaidex-cli-core";
+import type { IPromptProcessor, PromptPipelineContent } from "./types.js";
+import type { CommandContext } from "../../ui/commands/types.js";
 
 /**
  * Appends the user's full command invocation to the prompt if arguments are

@@ -1,55 +1,59 @@
-# API keys and secrets
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+*.tsbuildinfo
+bundle/*.js
+bundle/*.vsix
+!bundle/sandbox-*.sb
+!bundle/llmProviders.json
+
+# Environment and secrets
 .env
-.env~
+.env.*
+*.env
+PRIVATE/
 
-# gemini-cli settings
-# We want to keep the .gemini in the root of the repo and ignore any .gemini
-# in subdirectories. In our root .gemini we want to allow for version control
-# for subcommands.
-**/.gemini/
-!/.gemini/
-.gemini/*
-!.gemini/config.yaml
-!.gemini/commands/
+# Logs
+*.log
+LOG_*
 
-# Note: .gemini-clipboard/ is NOT in gitignore so Gemini can access pasted images
+# IDE and editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
 
-# Dependency directory
-node_modules
-bower_components
-package-lock.json
-
-# Editors
-.idea
-*.iml
-
-# OS metadata
+# OS files
 .DS_Store
 Thumbs.db
 
-# TypeScript build info files
-*.tsbuildinfo
-
-# Ignore built ts files
-dist
-
-# Docker folder to help skip auth refreshes
-.docker
-
-bundle
-
-# Test report files
+# Test artifacts
+coverage/
 junit.xml
-packages/*/coverage/
+*.test.js.map
 
-# Generated files
-packages/cli/src/generated/
-packages/core/src/generated/
-.integration-tests/
-packages/vscode-ide-companion/*.vsix
+# Development files
+*.BACKUP
+*.bak
+*.backup
+*.orig
+MISSION*.md
+DEBUG_*.md
+*_casestudy.txt
+*_comparison.md
+*_example.md
+*_bug.md
+START_INSTRUCTION*.md
+YOLO_*.md
+checkNext*.md
 
-# GHA credentials
-gha-creds-*.json
+# Screenshots (except docs)
+Screenshot*.png
 
-# Log files
-patch_output.log
+# Temporary files
+*.tmp
+*.temp
+.cache/

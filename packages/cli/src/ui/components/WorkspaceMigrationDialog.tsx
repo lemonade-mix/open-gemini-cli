@@ -4,15 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Box, Text, useInput } from 'ink';
-import type { GeminiCLIExtension } from '@google/gemini-cli-core';
-import { performWorkspaceExtensionMigration } from '../../config/extension.js';
-import { RadioButtonSelect } from './shared/RadioButtonSelect.js';
-import { theme } from '../semantic-colors.js';
-import { useState } from 'react';
+import { Box, Text, useInput } from "ink";
+import {
+  type Extension,
+  performWorkspaceExtensionMigration,
+} from "../../config/extension.js";
+import { RadioButtonSelect } from "./shared/RadioButtonSelect.js";
+import { Colors } from "../colors.js";
+import { useState } from "react";
 
 export function WorkspaceMigrationDialog(props: {
-  workspaceExtensions: GeminiCLIExtension[];
+  workspaceExtensions: Extension[];
   onOpen: () => void;
   onClose: () => void;
 }) {
@@ -21,17 +23,14 @@ export function WorkspaceMigrationDialog(props: {
   const [failedExtensions, setFailedExtensions] = useState<string[]>([]);
   onOpen();
   const onMigrate = async () => {
-    const failed = await performWorkspaceExtensionMigration(
-      workspaceExtensions,
-      // We aren't updating extensions, just moving them around, don't need to ask for consent.
-      async (_) => true,
-    );
+    const failed =
+      await performWorkspaceExtensionMigration(workspaceExtensions);
     setFailedExtensions(failed);
     setMigrationComplete(true);
   };
 
   useInput((input) => {
-    if (migrationComplete && input === 'q') {
+    if (migrationComplete && input === "q") {
       process.exit(0);
     }
   });
@@ -41,15 +40,15 @@ export function WorkspaceMigrationDialog(props: {
       <Box
         flexDirection="column"
         borderStyle="round"
-        borderColor={theme.border.default}
+        borderColor={Colors.Gray}
         padding={1}
       >
         {failedExtensions.length > 0 ? (
           <>
-            <Text color={theme.text.primary}>
+            <Text>
               The following extensions failed to migrate. Please try installing
-              them manually. To see other changes, Gemini CLI must be restarted.
-              Press &apos;q&apos; to quit.
+              them manually. To see other changes, KaiDex CLI must be restarted.
+              Press {"'q'"} to quit.
             </Text>
             <Box flexDirection="column" marginTop={1} marginLeft={2}>
               {failedExtensions.map((failed) => (
@@ -58,9 +57,9 @@ export function WorkspaceMigrationDialog(props: {
             </Box>
           </>
         ) : (
-          <Text color={theme.text.primary}>
-            Migration complete. To see changes, Gemini CLI must be restarted.
-            Press &apos;q&apos; to quit.
+          <Text>
+            Migration complete. To see changes, KaiDex CLI must be restarted.
+            Press {"'q'"} to quit.
           </Text>
         )}
       </Box>
@@ -71,36 +70,32 @@ export function WorkspaceMigrationDialog(props: {
     <Box
       flexDirection="column"
       borderStyle="round"
-      borderColor={theme.border.default}
+      borderColor={Colors.Gray}
       padding={1}
     >
-      <Text bold color={theme.text.primary}>
-        Workspace-level extensions are deprecated{'\n'}
-      </Text>
-      <Text color={theme.text.primary}>
-        Would you like to install them at the user level?
-      </Text>
-      <Text color={theme.text.primary}>
+      <Text bold>Workspace-level extensions are deprecated{"\n"}</Text>
+      <Text>Would you like to install them at the user level?</Text>
+      <Text>
         The extension definition will remain in your workspace directory.
       </Text>
-      <Text color={theme.text.primary}>
+      <Text>
         If you opt to skip, you can install them manually using the extensions
         install command.
       </Text>
 
       <Box flexDirection="column" marginTop={1} marginLeft={2}>
         {workspaceExtensions.map((extension) => (
-          <Text key={extension.name}>- {extension.name}</Text>
+          <Text key={extension.config.name}>- {extension.config.name}</Text>
         ))}
       </Box>
       <Box marginTop={1}>
         <RadioButtonSelect
           items={[
-            { label: 'Install all', value: 'migrate', key: 'migrate' },
-            { label: 'Skip', value: 'skip', key: 'skip' },
+            { label: "Install all", value: "migrate" },
+            { label: "Skip", value: "skip" },
           ]}
           onSelect={(value: string) => {
-            if (value === 'migrate') {
+            if (value === "migrate") {
               onMigrate();
             } else {
               onClose();

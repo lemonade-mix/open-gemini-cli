@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Box, Text } from 'ink';
-import { useAppContext } from '../contexts/AppContext.js';
-import { useUIState } from '../contexts/UIStateContext.js';
-import { theme } from '../semantic-colors.js';
-import { StreamingState } from '../types.js';
-import { UpdateNotification } from './UpdateNotification.js';
+import { Box, Text } from "ink";
+import { useAppContext } from "../contexts/AppContext.js";
+import { useUIState } from "../contexts/UIStateContext.js";
+import { Colors } from "../colors.js";
+import { StreamingState } from "../types.js";
+import { UpdateNotification } from "./UpdateNotification.js";
 
 export const Notifications = () => {
   const { startupWarnings } = useAppContext();
@@ -29,13 +29,13 @@ export const Notifications = () => {
       {showStartupWarnings && (
         <Box
           borderStyle="round"
-          borderColor={theme.status.warning}
+          borderColor={Colors.AccentYellow}
           paddingX={1}
           marginY={1}
           flexDirection="column"
         >
           {startupWarnings.map((warning, index) => (
-            <Text key={index} color={theme.status.warning}>
+            <Text key={index} color={Colors.AccentYellow}>
               {warning}
             </Text>
           ))}
@@ -44,15 +44,15 @@ export const Notifications = () => {
       {showInitError && (
         <Box
           borderStyle="round"
-          borderColor={theme.status.error}
+          borderColor={Colors.AccentRed}
           paddingX={1}
           marginBottom={1}
         >
-          <Text color={theme.status.error}>
+          <Text color={Colors.AccentRed}>
             Initialization Error: {initError}
           </Text>
-          <Text color={theme.status.error}>
-            {' '}
+          <Text color={Colors.AccentRed}>
+            {" "}
             Please check API key and configuration.
           </Text>
         </Box>

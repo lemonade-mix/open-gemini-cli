@@ -4,9 +4,7 @@ This document describes the `google_web_search` tool.
 
 ## Description
 
-Use `google_web_search` to perform a web search using Google Search via the
-Gemini API. The `google_web_search` tool returns a summary of web results with
-sources.
+Use `google_web_search` to perform a web search using Google Search via the KaiDex API. The `google_web_search` tool returns a summary of web results with sources.
 
 ### Arguments
 
@@ -14,11 +12,9 @@ sources.
 
 - `query` (string, required): The search query.
 
-## How to use `google_web_search` with the Gemini CLI
+## How to use `google_web_search` with the KaiDex CLI
 
-The `google_web_search` tool sends a query to the Gemini API, which then
-performs a web search. `google_web_search` will return a generated response
-based on the search results, including citations and sources.
+The `google_web_search` tool sends a query to the KaiDex API, which then performs a web search. `google_web_search` will return a generated response based on the search results, including citations and sources.
 
 Usage:
 
@@ -36,7 +32,5 @@ google_web_search(query="latest advancements in AI-powered code generation")
 
 ## Important notes
 
-- **Response returned:** The `google_web_search` tool returns a processed
-  summary, not a raw list of search results.
-- **Citations:** The response includes citations to the sources used to generate
-  the summary.
+- **Response returned:** The `google_web_search` tool returns a processed summary, not a raw list of search results.
+- **Citations:** The response includes citations to the sources used to generate the summary.

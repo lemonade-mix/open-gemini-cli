@@ -6,29 +6,32 @@
 
 import {
   CoreToolScheduler,
-  type GeminiClient,
-  GeminiEventType,
+  type KaiDexClient,
+  KaiDexEventType,
   ToolConfirmationOutcome,
   ApprovalMode,
   getAllMCPServerStatuses,
   MCPServerStatus,
   isNodeError,
   parseAndFormatApiError,
-  safeLiteralReplace,
-  type AnyDeclarativeTool,
-  type ToolCall,
-  type ToolConfirmationPayload,
-  type CompletedToolCall,
-  type ToolCallRequestInfo,
-  type ServerGeminiErrorEvent,
-  type ServerGeminiStreamEvent,
-  type ToolCallConfirmationDetails,
-  type Config,
-  type UserTierId,
-  type AnsiOutput,
-} from '@google/gemini-cli-core';
-import type { RequestContext } from '@a2a-js/sdk/server';
-import { type ExecutionEventBus } from '@a2a-js/sdk/server';
+} from "@google/kaidex-cli-core";
+import {
+  partListUnionToKaidexArray,
+  googleToKaidex,
+} from "@google/kaidex-cli-core";
+import type {
+  ToolConfirmationPayload,
+  CompletedToolCall,
+  ToolCall,
+  ToolCallRequestInfo,
+  ServerKaiDexErrorEvent,
+  ServerKaiDexStreamEvent,
+  ToolCallConfirmationDetails,
+  Config,
+  UserTierId,
+} from "@google/kaidex-cli-core";
+import type { RequestContext } from "@a2a-js/sdk/server";
+import { type ExecutionEventBus } from "@a2a-js/sdk/server";
 import type {
   TaskStatusUpdateEvent,
   TaskArtifactUpdateEvent,
@@ -36,12 +39,12 @@ import type {
   Message,
   Part,
   Artifact,
-} from '@a2a-js/sdk';
-import { v4 as uuidv4 } from 'uuid';
-import { logger } from '../utils/logger.js';
-import * as fs from 'node:fs';
+} from "@a2a-js/sdk";
+import { v4 as uuidv4 } from "uuid";
+import { logger } from "../utils/logger.js";
+import * as fs from "node:fs";
 
-import { CoderAgentEvent } from '../types.js';
+import { CoderAgentEvent } from "../types.js";
 import type {
   CoderAgentMessage,
   StateChange,
@@ -50,17 +53,15 @@ import type {
   TaskMetadata,
   Thought,
   ThoughtSummary,
-} from '../types.js';
-import type { PartUnion, Part as genAiPart } from '@google/genai';
-
-type UnionKeys<T> = T extends T ? keyof T : never;
+} from "../types.js";
+import type { PartUnion, Part as genAiPart } from "@google/genai";
 
 export class Task {
   id: string;
   contextId: string;
   scheduler: CoreToolScheduler;
   config: Config;
-  geminiClient: GeminiClient;
+  kaidexClient: KaiDexClient;
   pendingToolConfirmationDetails: Map<string, ToolCallConfirmationDetails>;
   taskState: TaskState;
   eventBus?: ExecutionEventBus;
@@ -85,9 +86,9 @@ export class Task {
     this.contextId = contextId;
     this.config = config;
     this.scheduler = this.createScheduler();
-    this.geminiClient = this.config.getGeminiClient();
+    this.kaidexClient = this.config.getKaiDexClient();
     this.pendingToolConfirmationDetails = new Map();
-    this.taskState = 'submitted';
+    this.taskState = "submitted";
     this.eventBus = eventBus;
     this.completedToolCalls = [];
     this._resetToolCompletionPromise();
@@ -95,7 +96,7 @@ export class Task {
       // For a2a-server, we want to automatically switch to the fallback model
       // for future requests without retrying the current one. The 'stop'
       // intent achieves this.
-      async () => 'stop',
+      async () => "stop",
     );
   }
 
@@ -135,7 +136,9 @@ export class Task {
       id: this.id,
       contextId: this.contextId,
       taskState: this.taskState,
-      model: this.config.getModel(),
+      model:
+        (this.config.getContentGeneratorConfig().model as string) ||
+        "default-model",
       mcpServers: servers,
       availableTools,
     };
@@ -201,12 +204,12 @@ export class Task {
 
   private _createTextMessage(
     text: string,
-    role: 'agent' | 'user' = 'agent',
+    role: "agent" | "user" = "agent",
   ): Message {
     return {
-      kind: 'message',
+      kind: "message",
       role,
-      parts: [{ kind: 'text', text }],
+      parts: [{ kind: "text", text }],
       messageId: uuidv4(),
       taskId: this.id,
       contextId: this.contextId,
@@ -237,7 +240,7 @@ export class Task {
     }
 
     return {
-      kind: 'status-update',
+      kind: "status-update",
       taskId: this.id,
       contextId: this.contextId,
       status: {
@@ -265,8 +268,8 @@ export class Task {
       message = this._createTextMessage(messageText);
     } else if (messageParts) {
       message = {
-        kind: 'message',
-        role: 'agent',
+        kind: "message",
+        role: "agent",
         parts: messageParts,
         messageId: uuidv4(),
         taskId: this.id,
@@ -287,34 +290,25 @@ export class Task {
 
   private _schedulerOutputUpdate(
     toolCallId: string,
-    outputChunk: string | AnsiOutput,
+    outputChunk: string,
   ): void {
-    let outputAsText: string;
-    if (typeof outputChunk === 'string') {
-      outputAsText = outputChunk;
-    } else {
-      outputAsText = outputChunk
-        .map((line) => line.map((token) => token.text).join(''))
-        .join('\n');
-    }
-
     logger.info(
-      '[Task] Scheduler output update for tool call ' +
+      "[Task] Scheduler output update for tool call " +
         toolCallId +
-        ': ' +
-        outputAsText,
+        ": " +
+        outputChunk,
     );
     const artifact: Artifact = {
       artifactId: `tool-${toolCallId}-output`,
       parts: [
         {
-          kind: 'text',
-          text: outputAsText,
+          kind: "text",
+          text: outputChunk,
         } as Part,
       ],
     };
     const artifactEvent: TaskArtifactUpdateEvent = {
-      kind: 'artifact-update',
+      kind: "artifact-update",
       taskId: this.id,
       contextId: this.contextId,
       artifact,
@@ -328,7 +322,7 @@ export class Task {
     completedToolCalls: CompletedToolCall[],
   ): Promise<void> {
     logger.info(
-      '[Task] All tool calls completed by scheduler (batch):',
+      "[Task] All tool calls completed by scheduler (batch):",
       completedToolCalls.map((tc) => tc.request.callId),
     );
     this.completedToolCalls.push(...completedToolCalls);
@@ -339,7 +333,7 @@ export class Task {
 
   private _schedulerToolCallsUpdate(toolCalls: ToolCall[]): void {
     logger.info(
-      '[Task] Scheduler tool calls updated:',
+      "[Task] Scheduler tool calls updated:",
       toolCalls.map((tc) => `${tc.request.callId} (${tc.status})`),
     );
 
@@ -349,14 +343,14 @@ export class Task {
       const hasChanged = previousStatus !== tc.status;
 
       // Resolve tool call if it has reached a terminal state
-      if (['success', 'error', 'cancelled'].includes(tc.status)) {
+      if (["success", "error", "cancelled"].includes(tc.status)) {
         this._resolveToolCall(tc.request.callId);
       } else {
         // This will update the map
         this._registerToolCall(tc.request.callId, tc.status);
       }
 
-      if (tc.status === 'awaiting_approval' && tc.confirmationDetails) {
+      if (tc.status === "awaiting_approval" && tc.confirmationDetails) {
         this.pendingToolConfirmationDetails.set(
           tc.request.callId,
           tc.confirmationDetails,
@@ -367,7 +361,7 @@ export class Task {
       if (hasChanged) {
         const message = this.toolStatusMessage(tc, this.id, this.contextId);
         const coderAgentMessage: CoderAgentMessage =
-          tc.status === 'awaiting_approval'
+          tc.status === "awaiting_approval"
             ? { kind: CoderAgentEvent.ToolCallConfirmationEvent }
             : { kind: CoderAgentEvent.ToolCallUpdateEvent };
 
@@ -382,9 +376,9 @@ export class Task {
     });
 
     if (this.config.getApprovalMode() === ApprovalMode.YOLO) {
-      logger.info('[Task] YOLO mode enabled. Auto-approving all tool calls.');
+      logger.info("[Task] YOLO mode enabled. Auto-approving all tool calls.");
       toolCalls.forEach((tc: ToolCall) => {
-        if (tc.status === 'awaiting_approval' && tc.confirmationDetails) {
+        if (tc.status === "awaiting_approval" && tc.confirmationDetails) {
           tc.confirmationDetails.onConfirm(ToolConfirmationOutcome.ProceedOnce);
           this.pendingToolConfirmationDetails.delete(tc.request.callId);
         }
@@ -394,14 +388,14 @@ export class Task {
 
     const allPendingStatuses = Array.from(this.pendingToolCalls.values());
     const isAwaitingApproval = allPendingStatuses.some(
-      (status) => status === 'awaiting_approval',
+      (status) => status === "awaiting_approval",
     );
     const allPendingAreStable = allPendingStatuses.every(
       (status) =>
-        status === 'awaiting_approval' ||
-        status === 'success' ||
-        status === 'error' ||
-        status === 'cancelled',
+        status === "awaiting_approval" ||
+        status === "success" ||
+        status === "error" ||
+        status === "cancelled",
     );
 
     // 1. Are any pending tool calls awaiting_approval
@@ -416,7 +410,7 @@ export class Task {
 
       // We don't need to send another message, just a final status update.
       this.setTaskStateAndPublishUpdate(
-        'input-required',
+        "input-required",
         { kind: CoderAgentEvent.StateChangeEvent },
         undefined,
         undefined,
@@ -430,24 +424,11 @@ export class Task {
       outputUpdateHandler: this._schedulerOutputUpdate.bind(this),
       onAllToolCallsComplete: this._schedulerAllToolCallsComplete.bind(this),
       onToolCallsUpdate: this._schedulerToolCallsUpdate.bind(this),
-      getPreferredEditor: () => 'vscode',
+      getPreferredEditor: () => "vscode",
       config: this.config,
       onEditorClose: () => {},
     });
     return scheduler;
-  }
-
-  private _pickFields<
-    T extends ToolCall | AnyDeclarativeTool,
-    K extends UnionKeys<T>,
-  >(from: T, ...fields: K[]): Partial<T> {
-    const ret = {} as Pick<T, K>;
-    for (const field of fields) {
-      if (field in from) {
-        ret[field] = from[field];
-      }
-    }
-    return ret as Partial<T>;
   }
 
   private toolStatusMessage(
@@ -458,38 +439,38 @@ export class Task {
     const messageParts: Part[] = [];
 
     // Create a serializable version of the ToolCall (pick necesssary
-    // properties/avoid methods causing circular reference errors)
-    const serializableToolCall: Partial<ToolCall> = this._pickFields(
-      tc,
-      'request',
-      'status',
-      'confirmationDetails',
-      'liveOutput',
-      'response',
-    );
+    // properties/avoic methods causing circular reference errors)
+    const serializableToolCall: { [key: string]: unknown } = {
+      request: tc.request,
+      status: tc.status,
+    };
+
+    // For WaitingToolCall type
+    if ("confirmationDetails" in tc) {
+      serializableToolCall["confirmationDetails"] = tc.confirmationDetails;
+    }
 
     if (tc.tool) {
-      serializableToolCall.tool = this._pickFields(
-        tc.tool,
-        'name',
-        'displayName',
-        'description',
-        'kind',
-        'isOutputMarkdown',
-        'canUpdateOutput',
-        'schema',
-        'parameterSchema',
-      ) as AnyDeclarativeTool;
+      serializableToolCall["tool"] = {
+        name: tc.tool.name,
+        displayName: tc.tool.displayName,
+        description: tc.tool.description,
+        kind: tc.tool.kind,
+        isOutputMarkdown: tc.tool.isOutputMarkdown,
+        canUpdateOutput: tc.tool.canUpdateOutput,
+        schema: tc.tool.schema,
+        parameterSchema: tc.tool.parameterSchema,
+      };
     }
 
     messageParts.push({
-      kind: 'data',
-      data: serializableToolCall,
+      kind: "data",
+      data: serializableToolCall as ToolCall,
     } as Part);
 
     return {
-      kind: 'message',
-      role: 'agent',
+      kind: "message",
+      role: "agent",
       parts: messageParts,
       messageId: uuidv4(),
       taskId,
@@ -503,16 +484,16 @@ export class Task {
     new_string: string,
   ): Promise<string> {
     try {
-      const currentContent = fs.readFileSync(file_path, 'utf8');
+      const currentContent = fs.readFileSync(file_path, "utf8");
       return this._applyReplacement(
         currentContent,
         old_string,
         new_string,
-        old_string === '' && currentContent === '',
+        old_string === "" && currentContent === "",
       );
     } catch (err) {
-      if (!isNodeError(err) || err.code !== 'ENOENT') throw err;
-      return '';
+      if (!isNodeError(err) || err.code !== "ENOENT") throw err;
+      return "";
     }
   }
 
@@ -527,15 +508,13 @@ export class Task {
     }
     if (currentContent === null) {
       // Should not happen if not a new file, but defensively return empty or newString if oldString is also empty
-      return oldString === '' ? newString : '';
+      return oldString === "" ? newString : "";
     }
     // If oldString is empty and it's not a new file, do not modify the content.
-    if (oldString === '' && !isNewFile) {
+    if (oldString === "" && !isNewFile) {
       return currentContent;
     }
-
-    // Use intelligent replacement that handles $ sequences safely
-    return safeLiteralReplace(currentContent, oldString, newString);
+    return currentContent.replaceAll(oldString, newString);
   }
 
   async scheduleToolCalls(
@@ -549,17 +528,17 @@ export class Task {
     const updatedRequests = await Promise.all(
       requests.map(async (request) => {
         if (
-          request.name === 'replace' &&
+          request.name === "replace" &&
           request.args &&
-          !request.args['newContent'] &&
-          request.args['file_path'] &&
-          request.args['old_string'] &&
-          request.args['new_string']
+          !request.args["newContent"] &&
+          request.args["file_path"] &&
+          request.args["old_string"] &&
+          request.args["new_string"]
         ) {
           const newContent = await this.getProposedContent(
-            request.args['file_path'] as string,
-            request.args['old_string'] as string,
-            request.args['new_string'] as string,
+            request.args["file_path"] as string,
+            request.args["old_string"] as string,
+            request.args["new_string"] as string,
           );
           return { ...request, args: { ...request.args, newContent } };
         }
@@ -573,39 +552,39 @@ export class Task {
     const stateChange: StateChange = {
       kind: CoderAgentEvent.StateChangeEvent,
     };
-    this.setTaskStateAndPublishUpdate('working', stateChange);
+    this.setTaskStateAndPublishUpdate("working", stateChange);
 
     await this.scheduler.schedule(updatedRequests, abortSignal);
   }
 
-  async acceptAgentMessage(event: ServerGeminiStreamEvent): Promise<void> {
+  async acceptAgentMessage(event: ServerKaiDexStreamEvent): Promise<void> {
     const stateChange: StateChange = {
       kind: CoderAgentEvent.StateChangeEvent,
     };
     switch (event.type) {
-      case GeminiEventType.Content:
-        logger.info('[Task] Sending agent message content...');
+      case KaiDexEventType.Content:
+        logger.info("[Task] Sending agent message content...");
         this._sendTextContent(event.value);
         break;
-      case GeminiEventType.ToolCallRequest:
+      case KaiDexEventType.ToolCallRequest:
         // This is now handled by the agent loop, which collects all requests
         // and calls scheduleToolCalls once.
         logger.warn(
-          '[Task] A single tool call request was passed to acceptAgentMessage. This should be handled in a batch by the agent. Ignoring.',
+          "[Task] A single tool call request was passed to acceptAgentMessage. This should be handled in a batch by the agent. Ignoring.",
         );
         break;
-      case GeminiEventType.ToolCallResponse:
-        // This event type from ServerGeminiStreamEvent might be for when LLM *generates* a tool response part.
+      case KaiDexEventType.ToolCallResponse:
+        // This event type from ServerKaiDexStreamEvent might be for when LLM *generates* a tool response part.
         // The actual execution result comes via user message.
         logger.info(
-          '[Task] Received tool call response from LLM (part of generation):',
+          "[Task] Received tool call response from LLM (part of generation):",
           event.value,
         );
         break;
-      case GeminiEventType.ToolCallConfirmation:
+      case KaiDexEventType.ToolCallConfirmation:
         // This is when LLM requests confirmation, not when user provides it.
         logger.info(
-          '[Task] Received tool call confirmation request from LLM:',
+          "[Task] Received tool call confirmation request from LLM:",
           event.value.request.callId,
         );
         this.pendingToolConfirmationDetails.set(
@@ -615,38 +594,38 @@ export class Task {
         // This will be handled by the scheduler and _schedulerToolCallsUpdate will set InputRequired if needed.
         // No direct state change here, scheduler drives it.
         break;
-      case GeminiEventType.UserCancelled:
-        logger.info('[Task] Received user cancelled event from LLM stream.');
-        this.cancelPendingTools('User cancelled via LLM stream event');
+      case KaiDexEventType.UserCancelled:
+        logger.info("[Task] Received user cancelled event from LLM stream.");
+        this.cancelPendingTools("User cancelled via LLM stream event");
         this.setTaskStateAndPublishUpdate(
-          'input-required',
+          "input-required",
           stateChange,
-          'Task cancelled by user',
+          "Task cancelled by user",
           undefined,
           true,
         );
         break;
-      case GeminiEventType.Thought:
-        logger.info('[Task] Sending agent thought...');
+      case KaiDexEventType.Thought:
+        logger.info("[Task] Sending agent thought...");
         this._sendThought(event.value);
         break;
-      case GeminiEventType.ChatCompressed:
+      case KaiDexEventType.ChatCompressed:
         break;
-      case GeminiEventType.Finished:
+      case KaiDexEventType.Finished:
         logger.info(`[Task ${this.id}] Agent finished its turn.`);
         break;
-      case GeminiEventType.Error:
+      case KaiDexEventType.Error:
       default: {
         // Block scope for lexical declaration
-        const errorEvent = event as ServerGeminiErrorEvent; // Type assertion
+        const errorEvent = event as ServerKaiDexErrorEvent; // Type assertion
         const errorMessage =
-          errorEvent.value?.error.message ?? 'Unknown error from LLM stream';
+          errorEvent.value?.error.message ?? "Unknown error from LLM stream";
         logger.error(
-          '[Task] Received error event from LLM stream:',
+          "[Task] Received error event from LLM stream:",
           errorMessage,
         );
 
-        let errMessage = 'Unknown error from LLM stream';
+        let errMessage = "Unknown error from LLM stream";
         if (errorEvent.value) {
           errMessage = parseAndFormatApiError(errorEvent.value);
         }
@@ -666,29 +645,29 @@ export class Task {
 
   private async _handleToolConfirmationPart(part: Part): Promise<boolean> {
     if (
-      part.kind !== 'data' ||
+      part.kind !== "data" ||
       !part.data ||
-      typeof part.data['callId'] !== 'string' ||
-      typeof part.data['outcome'] !== 'string'
+      typeof part.data["callId"] !== "string" ||
+      typeof part.data["outcome"] !== "string"
     ) {
       return false;
     }
 
-    const callId = part.data['callId'] as string;
-    const outcomeString = part.data['outcome'] as string;
+    const callId = part.data["callId"] as string;
+    const outcomeString = part.data["outcome"] as string;
     let confirmationOutcome: ToolConfirmationOutcome | undefined;
 
-    if (outcomeString === 'proceed_once') {
+    if (outcomeString === "proceed_once") {
       confirmationOutcome = ToolConfirmationOutcome.ProceedOnce;
-    } else if (outcomeString === 'cancel') {
+    } else if (outcomeString === "cancel") {
       confirmationOutcome = ToolConfirmationOutcome.Cancel;
-    } else if (outcomeString === 'proceed_always') {
+    } else if (outcomeString === "proceed_always") {
       confirmationOutcome = ToolConfirmationOutcome.ProceedAlways;
-    } else if (outcomeString === 'proceed_always_server') {
+    } else if (outcomeString === "proceed_always_server") {
       confirmationOutcome = ToolConfirmationOutcome.ProceedAlwaysServer;
-    } else if (outcomeString === 'proceed_always_tool') {
+    } else if (outcomeString === "proceed_always_tool") {
       confirmationOutcome = ToolConfirmationOutcome.ProceedAlwaysTool;
-    } else if (outcomeString === 'modify_with_editor') {
+    } else if (outcomeString === "modify_with_editor") {
       confirmationOutcome = ToolConfirmationOutcome.ModifyWithEditor;
     } else {
       logger.warn(
@@ -712,20 +691,20 @@ export class Task {
     try {
       // Temporarily unset GCP environment variables so they do not leak into
       // tool calls.
-      const gcpProject = process.env['GOOGLE_CLOUD_PROJECT'];
-      const gcpCreds = process.env['GOOGLE_APPLICATION_CREDENTIALS'];
+      const gcpProject = process.env["GOOGLE_CLOUD_PROJECT"];
+      const gcpCreds = process.env["GOOGLE_APPLICATION_CREDENTIALS"];
       try {
-        delete process.env['GOOGLE_CLOUD_PROJECT'];
-        delete process.env['GOOGLE_APPLICATION_CREDENTIALS'];
+        delete process.env["GOOGLE_CLOUD_PROJECT"];
+        delete process.env["GOOGLE_APPLICATION_CREDENTIALS"];
 
         // This will trigger the scheduler to continue or cancel the specific tool.
         // The scheduler's onToolCallsUpdate will then reflect the new state (e.g., executing or cancelled).
 
         // If `edit` tool call, pass updated payload if presesent
-        if (confirmationDetails.type === 'edit') {
-          const payload = part.data['newContent']
+        if (confirmationDetails.type === "edit") {
+          const payload = part.data["newContent"]
             ? ({
-                newContent: part.data['newContent'] as string,
+                newContent: part.data["newContent"] as string,
               } as ToolConfirmationPayload)
             : undefined;
           this.skipFinalTrueAfterInlineEdit = !!payload;
@@ -735,17 +714,17 @@ export class Task {
         }
       } finally {
         if (gcpProject) {
-          process.env['GOOGLE_CLOUD_PROJECT'] = gcpProject;
+          process.env["GOOGLE_CLOUD_PROJECT"] = gcpProject;
         }
         if (gcpCreds) {
-          process.env['GOOGLE_APPLICATION_CREDENTIALS'] = gcpCreds;
+          process.env["GOOGLE_APPLICATION_CREDENTIALS"] = gcpCreds;
         }
       }
 
       // Do not delete if modifying, a subsequent tool confirmation for the same
       // callId will be passed with ProceedOnce/Cancel/etc
       // Note !== ToolConfirmationOutcome.ModifyWithEditor does not work!
-      if (confirmationOutcome !== 'modify_with_editor') {
+      if (confirmationOutcome !== "modify_with_editor") {
         this.pendingToolConfirmationDetails.delete(callId);
       }
 
@@ -796,14 +775,14 @@ export class Task {
       let parts: genAiPart[];
       if (Array.isArray(response)) {
         parts = response;
-      } else if (typeof response === 'string') {
+      } else if (typeof response === "string") {
         parts = [{ text: response }];
       } else {
-        parts = [response];
+        parts = partListUnionToKaidexArray([response]) as genAiPart[];
       }
-      this.geminiClient.addHistory({
-        role: 'user',
-        parts,
+      this.kaidexClient.addHistory({
+        role: "user",
+        parts: parts.map(googleToKaidex),
       });
     }
   }
@@ -811,7 +790,7 @@ export class Task {
   async *sendCompletedToolsToLlm(
     completedToolCalls: CompletedToolCall[],
     aborted: AbortSignal,
-  ): AsyncGenerator<ServerGeminiStreamEvent> {
+  ): AsyncGenerator<ServerKaiDexStreamEvent> {
     if (completedToolCalls.length === 0) {
       yield* (async function* () {})(); // Yield nothing
       return;
@@ -827,30 +806,30 @@ export class Task {
       );
       const responseParts = completedToolCall.response.responseParts;
       if (Array.isArray(responseParts)) {
-        llmParts.push(...responseParts);
+        llmParts.push(...(partListUnionToKaidexArray(responseParts) as any));
       } else {
-        llmParts.push(responseParts);
+        llmParts.push(responseParts as any);
       }
     }
 
-    logger.info('[Task] Sending new parts to agent.');
+    logger.info("[Task] Sending new parts to agent.");
     const stateChange: StateChange = {
       kind: CoderAgentEvent.StateChangeEvent,
     };
     // Set task state to working as we are about to call LLM
-    this.setTaskStateAndPublishUpdate('working', stateChange);
+    this.setTaskStateAndPublishUpdate("working", stateChange);
     // TODO: Determine what it mean to have, then add a prompt ID.
-    yield* this.geminiClient.sendMessageStream(
-      llmParts,
+    yield* this.kaidexClient.sendMessageStream(
+      llmParts as any,
       aborted,
-      /*prompt_id*/ '',
+      /*prompt_id*/ "",
     );
   }
 
   async *acceptUserMessage(
     requestContext: RequestContext,
     aborted: AbortSignal,
-  ): AsyncGenerator<ServerGeminiStreamEvent> {
+  ): AsyncGenerator<ServerKaiDexStreamEvent> {
     const userMessage = requestContext.userMessage;
     const llmParts: PartUnion[] = [];
     let anyConfirmationHandled = false;
@@ -866,28 +845,28 @@ export class Task {
         continue;
       }
 
-      if (part.kind === 'text') {
+      if (part.kind === "text") {
         llmParts.push({ text: part.text });
         hasContentForLlm = true;
       }
     }
 
     if (hasContentForLlm) {
-      logger.info('[Task] Sending new parts to LLM.');
+      logger.info("[Task] Sending new parts to LLM.");
       const stateChange: StateChange = {
         kind: CoderAgentEvent.StateChangeEvent,
       };
       // Set task state to working as we are about to call LLM
-      this.setTaskStateAndPublishUpdate('working', stateChange);
+      this.setTaskStateAndPublishUpdate("working", stateChange);
       // TODO: Determine what it mean to have, then add a prompt ID.
-      yield* this.geminiClient.sendMessageStream(
-        llmParts,
+      yield* this.kaidexClient.sendMessageStream(
+        llmParts as any,
         aborted,
-        /*prompt_id*/ '',
+        /*prompt_id*/ "",
       );
     } else if (anyConfirmationHandled) {
       logger.info(
-        '[Task] User message only contained tool confirmations. Scheduler is active. No new input for LLM this turn.',
+        "[Task] User message only contained tool confirmations. Scheduler is active. No new input for LLM this turn.",
       );
       // Ensure task state reflects that scheduler might be working due to confirmation.
       // If scheduler is active, it will emit its own status updates.
@@ -896,17 +875,17 @@ export class Task {
       // If not, and no new text, we are just waiting.
       if (
         this.pendingToolCalls.size > 0 &&
-        this.taskState !== 'input-required'
+        this.taskState !== "input-required"
       ) {
         const stateChange: StateChange = {
           kind: CoderAgentEvent.StateChangeEvent,
         };
-        this.setTaskStateAndPublishUpdate('working', stateChange); // Reflect potential background activity
+        this.setTaskStateAndPublishUpdate("working", stateChange); // Reflect potential background activity
       }
       yield* (async function* () {})(); // Yield nothing
     } else {
       logger.info(
-        '[Task] No relevant parts in user message for LLM interaction or tool confirmation.',
+        "[Task] No relevant parts in user message for LLM interaction or tool confirmation.",
       );
       // If there's no new text and no confirmations, and no pending tools,
       // it implies we might need to signal input required if nothing else is happening.
@@ -916,10 +895,10 @@ export class Task {
   }
 
   _sendTextContent(content: string): void {
-    if (content === '') {
+    if (content === "") {
       return;
     }
-    logger.info('[Task] Sending text content to event bus.');
+    logger.info("[Task] Sending text content to event bus.");
     const message = this._createTextMessage(content);
     const textContent: TextContent = {
       kind: CoderAgentEvent.TextContentEvent,
@@ -938,13 +917,13 @@ export class Task {
     if (!content.subject && !content.description) {
       return;
     }
-    logger.info('[Task] Sending thought to event bus.');
+    logger.info("[Task] Sending thought to event bus.");
     const message: Message = {
-      kind: 'message',
-      role: 'agent',
+      kind: "message",
+      role: "agent",
       parts: [
         {
-          kind: 'data',
+          kind: "data",
           data: content,
         } as Part,
       ],

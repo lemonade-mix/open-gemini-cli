@@ -4,29 +4,29 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { Mock } from 'vitest';
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { WebSearchToolParams } from './web-search.js';
-import { WebSearchTool } from './web-search.js';
-import type { Config } from '../config/config.js';
-import { GeminiClient } from '../core/client.js';
-import { ToolErrorType } from './tool-error.js';
+import type { Mock } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import type { WebSearchToolParams } from "./web-search.js";
+import { WebSearchTool } from "./web-search.js";
+import type { Config } from "../config/config.js";
+import { KaiDexClient } from "../core/client.js";
+import { ToolErrorType } from "./tool-error.js";
 
-// Mock GeminiClient and Config constructor
-vi.mock('../core/client.js');
-vi.mock('../config/config.js');
+// Mock KaiDexClient and Config constructor
+vi.mock("../core/client.js");
+vi.mock("../config/config.js");
 
-describe('WebSearchTool', () => {
+describe("WebSearchTool", () => {
   const abortSignal = new AbortController().signal;
-  let mockGeminiClient: GeminiClient;
+  let mockKaiDexClient: KaiDexClient;
   let tool: WebSearchTool;
 
   beforeEach(() => {
     const mockConfigInstance = {
-      getGeminiClient: () => mockGeminiClient,
+      getKaiDexClient: () => mockKaiDexClient,
       getProxy: () => undefined,
     } as unknown as Config;
-    mockGeminiClient = new GeminiClient(mockConfigInstance);
+    mockKaiDexClient = new KaiDexClient(mockConfigInstance);
     tool = new WebSearchTool(mockConfigInstance);
   });
 
@@ -34,32 +34,32 @@ describe('WebSearchTool', () => {
     vi.restoreAllMocks();
   });
 
-  describe('build', () => {
-    it('should return an invocation for a valid query', () => {
-      const params: WebSearchToolParams = { query: 'test query' };
+  describe("build", () => {
+    it("should return an invocation for a valid query", () => {
+      const params: WebSearchToolParams = { query: "test query" };
       const invocation = tool.build(params);
       expect(invocation).toBeDefined();
       expect(invocation.params).toEqual(params);
     });
 
-    it('should throw an error for an empty query', () => {
-      const params: WebSearchToolParams = { query: '' };
+    it("should throw an error for an empty query", () => {
+      const params: WebSearchToolParams = { query: "" };
       expect(() => tool.build(params)).toThrow(
         "The 'query' parameter cannot be empty.",
       );
     });
 
-    it('should throw an error for a query with only whitespace', () => {
-      const params: WebSearchToolParams = { query: '   ' };
+    it("should throw an error for a query with only whitespace", () => {
+      const params: WebSearchToolParams = { query: "   " };
       expect(() => tool.build(params)).toThrow(
         "The 'query' parameter cannot be empty.",
       );
     });
   });
 
-  describe('getDescription', () => {
-    it('should return a description of the search', () => {
-      const params: WebSearchToolParams = { query: 'test query' };
+  describe("getDescription", () => {
+    it("should return a description of the search", () => {
+      const params: WebSearchToolParams = { query: "test query" };
       const invocation = tool.build(params);
       expect(invocation.getDescription()).toBe(
         'Searching the web for: "test query"',
@@ -67,15 +67,15 @@ describe('WebSearchTool', () => {
     });
   });
 
-  describe('execute', () => {
-    it('should return search results for a successful query', async () => {
-      const params: WebSearchToolParams = { query: 'successful query' };
-      (mockGeminiClient.generateContent as Mock).mockResolvedValue({
+  describe("execute", () => {
+    it("should return search results for a successful query", async () => {
+      const params: WebSearchToolParams = { query: "successful query" };
+      (mockKaiDexClient.generateContent as Mock).mockResolvedValue({
         candidates: [
           {
             content: {
-              role: 'model',
-              parts: [{ text: 'Here are your results.' }],
+              role: "model",
+              parts: [{ text: "Here are your results." }],
             },
           },
         ],
@@ -93,14 +93,14 @@ describe('WebSearchTool', () => {
       expect(result.sources).toBeUndefined();
     });
 
-    it('should handle no search results found', async () => {
-      const params: WebSearchToolParams = { query: 'no results query' };
-      (mockGeminiClient.generateContent as Mock).mockResolvedValue({
+    it("should handle no search results found", async () => {
+      const params: WebSearchToolParams = { query: "no results query" };
+      (mockKaiDexClient.generateContent as Mock).mockResolvedValue({
         candidates: [
           {
             content: {
-              role: 'model',
-              parts: [{ text: '' }],
+              role: "model",
+              parts: [{ text: "" }],
             },
           },
         ],
@@ -112,36 +112,36 @@ describe('WebSearchTool', () => {
       expect(result.llmContent).toBe(
         'No search results or information found for query: "no results query"',
       );
-      expect(result.returnDisplay).toBe('No information found.');
+      expect(result.returnDisplay).toBe("No information found.");
     });
 
-    it('should return a WEB_SEARCH_FAILED error on failure', async () => {
-      const params: WebSearchToolParams = { query: 'error query' };
-      const testError = new Error('API Failure');
-      (mockGeminiClient.generateContent as Mock).mockRejectedValue(testError);
+    it("should return a WEB_SEARCH_FAILED error on failure", async () => {
+      const params: WebSearchToolParams = { query: "error query" };
+      const testError = new Error("API Failure");
+      (mockKaiDexClient.generateContent as Mock).mockRejectedValue(testError);
 
       const invocation = tool.build(params);
       const result = await invocation.execute(abortSignal);
 
       expect(result.error?.type).toBe(ToolErrorType.WEB_SEARCH_FAILED);
-      expect(result.llmContent).toContain('Error:');
-      expect(result.llmContent).toContain('API Failure');
-      expect(result.returnDisplay).toBe('Error performing web search.');
+      expect(result.llmContent).toContain("Error:");
+      expect(result.llmContent).toContain("API Failure");
+      expect(result.returnDisplay).toBe("Error performing web search.");
     });
 
-    it('should correctly format results with sources and citations', async () => {
-      const params: WebSearchToolParams = { query: 'grounding query' };
-      (mockGeminiClient.generateContent as Mock).mockResolvedValue({
+    it("should correctly format results with sources and citations", async () => {
+      const params: WebSearchToolParams = { query: "grounding query" };
+      (mockKaiDexClient.generateContent as Mock).mockResolvedValue({
         candidates: [
           {
             content: {
-              role: 'model',
-              parts: [{ text: 'This is a test response.' }],
+              role: "model",
+              parts: [{ text: "This is a test response." }],
             },
             groundingMetadata: {
               groundingChunks: [
-                { web: { uri: 'https://example.com', title: 'Example Site' } },
-                { web: { uri: 'https://google.com', title: 'Google' } },
+                { web: { uri: "https://example.com", title: "Example Site" } },
+                { web: { uri: "https://google.com", title: "Google" } },
               ],
               groundingSupports: [
                 {
@@ -176,33 +176,33 @@ Sources:
       expect(result.sources).toHaveLength(2);
     });
 
-    it('should insert markers at correct byte positions for multibyte text', async () => {
-      const params: WebSearchToolParams = { query: 'multibyte query' };
-      (mockGeminiClient.generateContent as Mock).mockResolvedValue({
+    it("should insert markers at correct byte positions for multibyte text", async () => {
+      const params: WebSearchToolParams = { query: "multibyte query" };
+      (mockKaiDexClient.generateContent as Mock).mockResolvedValue({
         candidates: [
           {
             content: {
-              role: 'model',
-              parts: [{ text: 'こんにちは! Gemini CLI✨️' }],
+              role: "model",
+              parts: [{ text: "こんにちは! KaiDex CLI✨️" }],
             },
             groundingMetadata: {
               groundingChunks: [
                 {
                   web: {
-                    title: 'Japanese Greeting',
-                    uri: 'https://example.test/japanese-greeting',
+                    title: "Japanese Greeting",
+                    uri: "https://example.test/japanese-greeting",
                   },
                 },
                 {
                   web: {
-                    title: 'google-gemini/gemini-cli',
-                    uri: 'https://github.com/google-gemini/gemini-cli',
+                    title: "google-gemini/gemini-cli",
+                    uri: "https://github.com/google-gemini/gemini-cli",
                   },
                 },
                 {
                   web: {
-                    title: 'Gemini CLI: your open-source AI agent',
-                    uri: 'https://blog.google/technology/developers/introducing-gemini-cli-open-source-ai-agent/',
+                    title: "Gemini CLI: your open-source AI agent",
+                    uri: "https://blog.google/technology/developers/introducing-gemini-cli-open-source-ai-agent/",
                   },
                 },
               ],
@@ -234,12 +234,12 @@ Sources:
 
       const expectedLlmContent = `Web search results for "multibyte query":
 
-こんにちは![1] Gemini CLI✨️[2][3]
+こんにちは![1] KaiDex CLI✨️[2][3]
 
 Sources:
 [1] Japanese Greeting (https://example.test/japanese-greeting)
 [2] google-gemini/gemini-cli (https://github.com/google-gemini/gemini-cli)
-[3] Gemini CLI: your open-source AI agent (https://blog.google/technology/developers/introducing-gemini-cli-open-source-ai-agent/)`;
+[3] KaiDex CLI: your open-source AI agent (https://blog.google/technology/developers/introducing-gemini-cli-open-source-ai-agent/)`;
 
       expect(result.llmContent).toBe(expectedLlmContent);
       expect(result.returnDisplay).toBe(

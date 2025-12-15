@@ -4,19 +4,19 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type React from 'react';
-import { useCallback, useState } from 'react';
-import { Box, Text } from 'ink';
-import { theme } from '../semantic-colors.js';
-import { themeManager, DEFAULT_THEME } from '../themes/theme-manager.js';
-import { RadioButtonSelect } from './shared/RadioButtonSelect.js';
-import { DiffRenderer } from './messages/DiffRenderer.js';
-import { colorizeCode } from '../utils/CodeColorizer.js';
-import type { LoadedSettings } from '../../config/settings.js';
-import { SettingScope } from '../../config/settings.js';
-import { getScopeMessageForSetting } from '../../utils/dialogScopeUtils.js';
-import { useKeypress } from '../hooks/useKeypress.js';
-import { ScopeSelector } from './shared/ScopeSelector.js';
+import type React from "react";
+import { useCallback, useState } from "react";
+import { Box, Text } from "ink";
+import { Colors } from "../colors.js";
+import { themeManager, DEFAULT_THEME } from "../themes/theme-manager.js";
+import { RadioButtonSelect } from "./shared/RadioButtonSelect.js";
+import { DiffRenderer } from "./messages/DiffRenderer.js";
+import { colorizeCode } from "../utils/CodeColorizer.js";
+import type { LoadedSettings } from "../../config/settings.js";
+import { SettingScope } from "../../config/settings.js";
+import { getScopeMessageForSetting } from "../../utils/dialogScopeUtils.js";
+import { useKeypress } from "../hooks/useKeypress.js";
+import { ScopeSelector } from "./shared/ScopeSelector.js";
 
 interface ThemeDialogProps {
   /** Callback function when a theme is selected */
@@ -53,7 +53,7 @@ export function ThemeDialog({
       : settings.merged.ui?.customThemes || {};
   const builtInThemes = themeManager
     .getAvailableThemes()
-    .filter((theme) => theme.type !== 'custom');
+    .filter((theme) => theme.type !== "custom");
   const customThemeNames = Object.keys(customThemes);
   const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
   // Generate theme items
@@ -63,14 +63,12 @@ export function ThemeDialog({
       value: theme.name,
       themeNameDisplay: theme.name,
       themeTypeDisplay: capitalize(theme.type),
-      key: theme.name,
     })),
     ...customThemeNames.map((name) => ({
       label: name,
       value: name,
       themeNameDisplay: name,
-      themeTypeDisplay: 'Custom',
-      key: name,
+      themeTypeDisplay: "Custom",
     })),
   ];
 
@@ -104,14 +102,14 @@ export function ThemeDialog({
     [onSelect, highlightedThemeName],
   );
 
-  const [mode, setMode] = useState<'theme' | 'scope'>('theme');
+  const [mode, setMode] = useState<"theme" | "scope">("theme");
 
   useKeypress(
     (key) => {
-      if (key.name === 'tab') {
-        setMode((prev) => (prev === 'theme' ? 'scope' : 'theme'));
+      if (key.name === "tab") {
+        setMode((prev) => (prev === "theme" ? "scope" : "theme"));
       }
-      if (key.name === 'escape') {
+      if (key.name === "escape") {
         onSelect(undefined, selectedScope);
       }
     },
@@ -120,7 +118,7 @@ export function ThemeDialog({
 
   // Generate scope message for theme setting
   const otherScopeModifiedMessage = getScopeMessageForSetting(
-    'ui.theme',
+    "ui.theme",
     selectedScope,
     settings,
   );
@@ -185,7 +183,7 @@ export function ThemeDialog({
   return (
     <Box
       borderStyle="round"
-      borderColor={theme.border.default}
+      borderColor={Colors.Gray}
       flexDirection="column"
       paddingTop={includePadding ? 1 : 0}
       paddingBottom={includePadding ? 1 : 0}
@@ -193,33 +191,29 @@ export function ThemeDialog({
       paddingRight={1}
       width="100%"
     >
-      {mode === 'theme' ? (
+      {mode === "theme" ? (
         <Box flexDirection="row">
           {/* Left Column: Selection */}
           <Box flexDirection="column" width="45%" paddingRight={2}>
-            <Text bold={mode === 'theme'} wrap="truncate">
-              {mode === 'theme' ? '> ' : '  '}Select Theme{' '}
-              <Text color={theme.text.secondary}>
-                {otherScopeModifiedMessage}
-              </Text>
+            <Text bold={mode === "theme"} wrap="truncate">
+              {mode === "theme" ? "> " : "  "}Select Theme{" "}
+              <Text color={Colors.Gray}>{otherScopeModifiedMessage}</Text>
             </Text>
             <RadioButtonSelect
               items={themeItems}
               initialIndex={safeInitialThemeIndex}
               onSelect={handleThemeSelect}
               onHighlight={handleThemeHighlight}
-              isFocused={mode === 'theme'}
+              isFocused={mode === "theme"}
               maxItemsToShow={12}
               showScrollArrows={true}
-              showNumbers={mode === 'theme'}
+              showNumbers={mode === "theme"}
             />
           </Box>
 
           {/* Right Column: Preview */}
           <Box flexDirection="column" width="55%" paddingLeft={2}>
-            <Text bold color={theme.text.primary}>
-              Preview
-            </Text>
+            <Text bold>Preview</Text>
             {/* Get the Theme object for the highlighted theme, fall back to default if not found */}
             {(() => {
               const previewTheme =
@@ -229,7 +223,7 @@ export function ThemeDialog({
               return (
                 <Box
                   borderStyle="single"
-                  borderColor={theme.border.default}
+                  borderColor={Colors.Gray}
                   paddingTop={includePadding ? 1 : 0}
                   paddingBottom={includePadding ? 1 : 0}
                   paddingLeft={1}
@@ -243,7 +237,7 @@ def fibonacci(n):
     for _ in range(n):
         a, b = b, a + b
     return a`,
-                    'python',
+                    "python",
                     codeBlockHeight,
                     colorizeCodeWidth,
                   )}
@@ -268,14 +262,14 @@ def fibonacci(n):
         <ScopeSelector
           onSelect={handleScopeSelect}
           onHighlight={handleScopeHighlight}
-          isFocused={mode === 'scope'}
+          isFocused={mode === "scope"}
           initialScope={selectedScope}
         />
       )}
       <Box marginTop={1}>
-        <Text color={theme.text.secondary} wrap="truncate">
-          (Use Enter to {mode === 'theme' ? 'select' : 'apply scope'}, Tab to{' '}
-          {mode === 'theme' ? 'configure scope' : 'select theme'})
+        <Text color={Colors.Gray} wrap="truncate">
+          (Use Enter to {mode === "theme" ? "select" : "apply scope"}, Tab to{" "}
+          {mode === "theme" ? "configure scope" : "select theme"})
         </Text>
       </Box>
     </Box>

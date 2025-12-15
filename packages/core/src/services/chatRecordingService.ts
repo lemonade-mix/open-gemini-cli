@@ -4,19 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { type Config } from '../config/config.js';
-import { type Status } from '../core/coreToolScheduler.js';
-import { type ThoughtSummary } from '../utils/thoughtUtils.js';
-import { getProjectHash } from '../utils/paths.js';
-import path from 'node:path';
-import fs from 'node:fs';
-import { randomUUID } from 'node:crypto';
-import type {
-  PartListUnion,
-  GenerateContentResponseUsageMetadata,
-} from '@google/genai';
-
-export const SESSION_FILE_PREFIX = 'session-';
+import { type Config } from "../config/config.js";
+import { type Status } from "../core/coreToolScheduler.js";
+import { type ThoughtSummary } from "../core/turn.js";
+import { getProjectHash } from "../utils/paths.js";
+import path from "node:path";
+import fs from "node:fs";
+import { randomUUID } from "node:crypto";
+import type { PartListUnion } from "../core/contentGenerator.js";
+import type { GenerateContentResponseUsageMetadata } from "../core/loggingContentGenerator.js";
 
 /**
  * Token usage summary for a message or conversation.
@@ -61,10 +57,10 @@ export interface ToolCallRecord {
  */
 export type ConversationRecordExtra =
   | {
-      type: 'user';
+      type: "user";
     }
   | {
-      type: 'gemini';
+      type: "gemini";
       toolCalls?: ToolCallRecord[];
       thoughts?: Array<ThoughtSummary & { timestamp: string }>;
       tokens?: TokensSummary | null;
@@ -104,7 +100,7 @@ export interface ResumedSessionData {
  * - Token usage statistics
  * - Assistant thoughts and reasoning
  *
- * Sessions are stored as JSON files in ~/.gemini/tmp/<project_hash>/chats/
+ * Sessions are stored as JSON files in ~/.kaidex/tmp/<project_hash>/chats/
  */
 export class ChatRecordingService {
   private conversationFile: string | null = null;
@@ -143,15 +139,15 @@ export class ChatRecordingService {
         // Create new session
         const chatsDir = path.join(
           this.config.storage.getProjectTempDir(),
-          'chats',
+          "chats",
         );
         fs.mkdirSync(chatsDir, { recursive: true });
 
         const timestamp = new Date()
           .toISOString()
           .slice(0, 16)
-          .replace(/:/g, '-');
-        const filename = `${SESSION_FILE_PREFIX}${timestamp}-${this.sessionId.slice(
+          .replace(/:/g, "-");
+        const filename = `session-${timestamp}-${this.sessionId.slice(
           0,
           8,
         )}.json`;
@@ -170,7 +166,7 @@ export class ChatRecordingService {
       this.queuedThoughts = [];
       this.queuedTokens = null;
     } catch (error) {
-      console.error('Error initializing chat recording service:', error);
+      console.error("Error initializing chat recording service:", error);
       throw error;
     }
   }
@@ -182,7 +178,7 @@ export class ChatRecordingService {
   }
 
   private newMessage(
-    type: ConversationRecordExtra['type'],
+    type: ConversationRecordExtra["type"],
     content: PartListUnion,
   ): MessageRecord {
     return {
@@ -197,8 +193,7 @@ export class ChatRecordingService {
    * Records a message in the conversation.
    */
   recordMessage(message: {
-    model: string | undefined;
-    type: ConversationRecordExtra['type'];
+    type: ConversationRecordExtra["type"];
     content: PartListUnion;
   }): void {
     if (!this.conversationFile) return;
@@ -206,13 +201,13 @@ export class ChatRecordingService {
     try {
       this.updateConversation((conversation) => {
         const msg = this.newMessage(message.type, message.content);
-        if (msg.type === 'gemini') {
-          // If it's a new Gemini message then incorporate any queued thoughts.
+        if (msg.type === "gemini") {
+          // If it's a new KaiDex message then incorporate any queued thoughts.
           conversation.messages.push({
             ...msg,
             thoughts: this.queuedThoughts,
             tokens: this.queuedTokens,
-            model: message.model,
+            model: this.config.getModel(),
           });
           this.queuedThoughts = [];
           this.queuedTokens = null;
@@ -222,7 +217,7 @@ export class ChatRecordingService {
         }
       });
     } catch (error) {
-      console.error('Error saving message:', error);
+      console.error("Error saving message:", error);
       throw error;
     }
   }
@@ -239,7 +234,7 @@ export class ChatRecordingService {
         timestamp: new Date().toISOString(),
       });
     } catch (error) {
-      console.error('Error saving thought:', error);
+      console.error("Error saving thought:", error);
       throw error;
     }
   }
@@ -265,7 +260,7 @@ export class ChatRecordingService {
         const lastMsg = this.getLastMessage(conversation);
         // If the last message already has token info, it's because this new token info is for a
         // new message that hasn't been recorded yet.
-        if (lastMsg && lastMsg.type === 'gemini' && !lastMsg.tokens) {
+        if (lastMsg && lastMsg.type === "gemini" && !lastMsg.tokens) {
           lastMsg.tokens = tokens;
           this.queuedTokens = null;
         } else {
@@ -273,7 +268,7 @@ export class ChatRecordingService {
         }
       });
     } catch (error) {
-      console.error('Error updating message tokens:', error);
+      console.error("Error updating message tokens:", error);
       throw error;
     }
   }
@@ -282,7 +277,7 @@ export class ChatRecordingService {
    * Adds tool calls to the last message in the conversation (which should be by Gemini).
    * This method enriches tool calls with metadata from the ToolRegistry.
    */
-  recordToolCalls(model: string, toolCalls: ToolCallRecord[]): void {
+  recordToolCalls(toolCalls: ToolCallRecord[]): void {
     if (!this.conversationFile) return;
 
     // Enrich tool calls with metadata from the ToolRegistry
@@ -292,7 +287,7 @@ export class ChatRecordingService {
       return {
         ...toolCall,
         displayName: toolInstance?.displayName || toolCall.name,
-        description: toolInstance?.description || '',
+        description: toolInstance?.description || "",
         renderOutputAsMarkdown: toolInstance?.isOutputMarkdown || false,
       };
     });
@@ -300,28 +295,28 @@ export class ChatRecordingService {
     try {
       this.updateConversation((conversation) => {
         const lastMsg = this.getLastMessage(conversation);
-        // If a tool call was made, but the last message isn't from Gemini, it's because Gemini is
+        // If a tool call was made, but the last message isn't from Gemini, it's because KaiDex is
         // calling tools without starting the message with text.  So the user submits a prompt, and
-        // Gemini immediately calls a tool (maybe with some thinking first).  In that case, create
-        // a new empty Gemini message.
+        // KaiDex immediately calls a tool (maybe with some thinking first).  In that case, create
+        // a new empty KaiDex message.
         // Also if there are any queued thoughts, it means this tool call(s) is from a new Gemini
         // message--because it's thought some more since we last, if ever, created a new Gemini
         // message from tool calls, when we dequeued the thoughts.
         if (
           !lastMsg ||
-          lastMsg.type !== 'gemini' ||
+          lastMsg.type !== "gemini" ||
           this.queuedThoughts.length > 0
         ) {
           const newMsg: MessageRecord = {
-            ...this.newMessage('gemini' as const, ''),
+            ...this.newMessage("gemini" as const, ""),
             // This isn't strictly necessary, but TypeScript apparently can't
             // tell that the first parameter to newMessage() becomes the
             // resulting message's type, and so it thinks that toolCalls may
             // not be present.  Confirming the type here satisfies it.
-            type: 'gemini' as const,
+            type: "gemini" as const,
             toolCalls: enrichedToolCalls,
             thoughts: this.queuedThoughts,
-            model,
+            model: this.config.getModel(),
           };
           // If there are any queued thoughts join them to this message.
           if (this.queuedThoughts.length > 0) {
@@ -335,7 +330,7 @@ export class ChatRecordingService {
           }
           conversation.messages.push(newMsg);
         } else {
-          // The last message is an existing Gemini message that we need to update.
+          // The last message is an existing KaiDex message that we need to update.
 
           // Update any existing tool call entries.
           if (!lastMsg.toolCalls) {
@@ -367,7 +362,7 @@ export class ChatRecordingService {
         }
       });
     } catch (error) {
-      console.error('Error adding tool call to message:', error);
+      console.error("Error adding tool call to message:", error);
       throw error;
     }
   }
@@ -377,11 +372,11 @@ export class ChatRecordingService {
    */
   private readConversation(): ConversationRecord {
     try {
-      this.cachedLastConvData = fs.readFileSync(this.conversationFile!, 'utf8');
+      this.cachedLastConvData = fs.readFileSync(this.conversationFile!, "utf8");
       return JSON.parse(this.cachedLastConvData);
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-        console.error('Error reading conversation file:', error);
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+        console.error("Error reading conversation file:", error);
         throw error;
       }
 
@@ -413,7 +408,7 @@ export class ChatRecordingService {
         fs.writeFileSync(this.conversationFile, newContent);
       }
     } catch (error) {
-      console.error('Error writing conversation file:', error);
+      console.error("Error writing conversation file:", error);
       throw error;
     }
   }
@@ -437,12 +432,12 @@ export class ChatRecordingService {
     try {
       const chatsDir = path.join(
         this.config.storage.getProjectTempDir(),
-        'chats',
+        "chats",
       );
       const sessionPath = path.join(chatsDir, `${sessionId}.json`);
       fs.unlinkSync(sessionPath);
     } catch (error) {
-      console.error('Error deleting session:', error);
+      console.error("Error deleting session:", error);
       throw error;
     }
   }

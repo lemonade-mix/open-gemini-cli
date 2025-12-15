@@ -7,8 +7,8 @@
 import type {
   MCPServerStatus,
   ToolConfirmationOutcome,
-} from '@google/gemini-cli-core';
-import type { TaskState } from '@a2a-js/sdk';
+} from "@google/kaidex-cli-core";
+import type { TaskState } from "@a2a-js/sdk";
 
 // Interfaces and enums for the CoderAgent protocol.
 
@@ -16,27 +16,27 @@ export enum CoderAgentEvent {
   /**
    * An event requesting one or more tool call confirmations.
    */
-  ToolCallConfirmationEvent = 'tool-call-confirmation',
+  ToolCallConfirmationEvent = "tool-call-confirmation",
   /**
    * An event updating on the status of one or more tool calls.
    */
-  ToolCallUpdateEvent = 'tool-call-update',
+  ToolCallUpdateEvent = "tool-call-update",
   /**
    * An event providing text updates on the task.
    */
-  TextContentEvent = 'text-content',
+  TextContentEvent = "text-content",
   /**
    * An event that indicates a change in the task's execution state.
    */
-  StateChangeEvent = 'state-change',
+  StateChangeEvent = "state-change",
   /**
    * An user-sent event to initiate the agent.
    */
-  StateAgentSettingsEvent = 'agent-settings',
+  StateAgentSettingsEvent = "agent-settings",
   /**
    * An event that contains a thought from the agent.
    */
-  ThoughtEvent = 'thought',
+  ThoughtEvent = "thought",
 }
 
 export interface AgentSettings {
@@ -110,7 +110,7 @@ export interface PersistedStateMetadata {
 
 export type PersistedTaskMetadata = { [k: string]: unknown };
 
-export const METADATA_KEY = '__persistedState';
+export const METADATA_KEY = "__persistedState";
 
 export function getPersistedState(
   metadata: PersistedTaskMetadata,

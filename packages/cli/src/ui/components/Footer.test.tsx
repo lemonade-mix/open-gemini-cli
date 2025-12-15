@@ -4,21 +4,24 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {
-  renderWithProviders,
-  createMockSettings,
-} from '../../test-utils/render.js';
-import { Footer } from './Footer.js';
-import { tildeifyPath } from '@google/gemini-cli-core';
+import { render } from "ink-testing-library";
+import { describe, it, expect, vi } from "vitest";
+import { Footer } from "./Footer.js";
+import * as useTerminalSize from "../hooks/useTerminalSize.js";
+import { tildeifyPath } from "@google/kaidex-cli-core";
+import path from "node:path";
 
-vi.mock('@google/gemini-cli-core', async (importOriginal) => {
+vi.mock("../hooks/useTerminalSize.js");
+const useTerminalSizeMock = vi.mocked(useTerminalSize.useTerminalSize);
+
+vi.mock("@google/kaidex-cli-core", async (importOriginal) => {
   const original =
-    await importOriginal<typeof import('@google/gemini-cli-core')>();
+    await importOriginal<typeof import("@google/kaidex-cli-core")>();
   return {
     ...original,
     shortenPath: (p: string, len: number) => {
       if (p.length > len) {
-        return '...' + p.slice(p.length - len + 3);
+        return "..." + p.slice(p.length - len + 3);
       }
       return p;
     },
@@ -26,109 +29,106 @@ vi.mock('@google/gemini-cli-core', async (importOriginal) => {
 });
 
 const defaultProps = {
-  model: 'gemini-pro',
+  model: "gemini-pro",
   targetDir:
-    '/Users/test/project/foo/bar/and/some/more/directories/to/make/it/long',
-  branchName: 'main',
+    "/Users/test/project/foo/bar/and/some/more/directories/to/make/it/long",
+  branchName: "main",
+  debugMode: false,
+  debugMessage: "",
+  corgiMode: false,
+  errorCount: 0,
+  showErrorDetails: false,
+  showMemoryUsage: false,
+  promptTokenCount: 100,
+  nightly: false,
 };
 
-const sessionStats = {
-  sessionStats: { lastPromptTokenCount: 0, lastResponseTokenCount: 0 },
+const renderWithWidth = (width: number, props = defaultProps) => {
+  useTerminalSizeMock.mockReturnValue({ columns: width, rows: 24 });
+  return render(<Footer {...props} />);
 };
 
-describe('<Footer />', () => {
-  it('renders the component', () => {
-    const { lastFrame } = renderWithProviders(<Footer />, {
-      width: 120,
-      uiState: { branchName: defaultProps.branchName, ...sessionStats },
-    });
+describe("<Footer />", () => {
+  it("renders the component", () => {
+    const { lastFrame } = renderWithWidth(120);
     expect(lastFrame()).toBeDefined();
   });
 
-  describe('path display', () => {
-    it('should display a shortened path on a narrow terminal', () => {
-      const { lastFrame } = renderWithProviders(<Footer />, {
-        width: 79,
-        uiState: { ...sessionStats },
-      });
+  describe("path display", () => {
+    it("should display shortened path on a wide terminal", () => {
+      const { lastFrame } = renderWithWidth(120);
       const tildePath = tildeifyPath(defaultProps.targetDir);
-      const pathLength = Math.max(20, Math.floor(79 * 0.25));
-      const expectedPath =
-        '...' + tildePath.slice(tildePath.length - pathLength + 3);
+      const expectedPath = "..." + tildePath.slice(tildePath.length - 48 + 3);
       expect(lastFrame()).toContain(expectedPath);
     });
 
-    it('should use wide layout at 80 columns', () => {
-      const { lastFrame } = renderWithProviders(<Footer />, {
-        width: 80,
-        uiState: { ...sessionStats },
-      });
-      const tildePath = tildeifyPath(defaultProps.targetDir);
-      const expectedPath =
-        '...' + tildePath.slice(tildePath.length - 80 * 0.25 + 3);
+    it("should display only the base directory name on a narrow terminal", () => {
+      const { lastFrame } = renderWithWidth(79);
+      const expectedPath = path.basename(defaultProps.targetDir);
       expect(lastFrame()).toContain(expectedPath);
+    });
+
+    it("should use wide layout at 80 columns", () => {
+      const { lastFrame } = renderWithWidth(80);
+      const tildePath = tildeifyPath(defaultProps.targetDir);
+      const expectedPath = "..." + tildePath.slice(tildePath.length - 32 + 3);
+      expect(lastFrame()).toContain(expectedPath);
+    });
+
+    it("should use narrow layout at 79 columns", () => {
+      const { lastFrame } = renderWithWidth(79);
+      const expectedPath = path.basename(defaultProps.targetDir);
+      expect(lastFrame()).toContain(expectedPath);
+      const tildePath = tildeifyPath(defaultProps.targetDir);
+      const unexpectedPath = "..." + tildePath.slice(tildePath.length - 31 + 3);
+      expect(lastFrame()).not.toContain(unexpectedPath);
     });
   });
 
-  it('displays the branch name when provided', () => {
-    const { lastFrame } = renderWithProviders(<Footer />, {
-      width: 120,
-      uiState: { branchName: defaultProps.branchName, ...sessionStats },
-    });
+  it("displays the branch name when provided", () => {
+    const { lastFrame } = renderWithWidth(120);
     expect(lastFrame()).toContain(`(${defaultProps.branchName}*)`);
   });
 
-  it('does not display the branch name when not provided', () => {
-    const { lastFrame } = renderWithProviders(<Footer />, {
-      width: 120,
-      uiState: { branchName: undefined, ...sessionStats },
+  it("does not display the branch name when not provided", () => {
+    const { lastFrame } = renderWithWidth(120, {
+      ...defaultProps,
+      branchName: undefined,
     });
     expect(lastFrame()).not.toContain(`(${defaultProps.branchName}*)`);
   });
 
-  it('displays the model name and context percentage', () => {
-    const { lastFrame } = renderWithProviders(<Footer />, {
-      width: 120,
-      uiState: { ...sessionStats },
-    });
+  it("displays the model name and context percentage", () => {
+    const { lastFrame } = renderWithWidth(120);
     expect(lastFrame()).toContain(defaultProps.model);
-    expect(lastFrame()).toMatch(/\(\d+% context left\)/);
+    expect(lastFrame()).toMatch(/\(\d+% context[\s\S]*left\)/);
   });
 
-  it('displays the model name and abbreviated context percentage', () => {
-    const { lastFrame } = renderWithProviders(<Footer />, {
-      width: 99,
-      uiState: { ...sessionStats },
-    });
-    expect(lastFrame()).toContain(defaultProps.model);
-    expect(lastFrame()).toMatch(/\(\d+%\)/);
-  });
-
-  describe('sandbox and trust info', () => {
-    it('should display untrusted when isTrustedFolder is false', () => {
-      const { lastFrame } = renderWithProviders(<Footer />, {
-        width: 120,
-        uiState: { isTrustedFolder: false, ...sessionStats },
+  describe("sandbox and trust info", () => {
+    it("should display untrusted when isTrustedFolder is false", () => {
+      const { lastFrame } = renderWithWidth(120, {
+        ...defaultProps,
+        isTrustedFolder: false,
       });
-      expect(lastFrame()).toContain('untrusted');
+      expect(lastFrame()).toContain("untrusted");
     });
 
-    it('should display custom sandbox info when SANDBOX env is set', () => {
-      vi.stubEnv('SANDBOX', 'gemini-cli-test-sandbox');
-      const { lastFrame } = renderWithProviders(<Footer />, {
-        width: 120,
-        uiState: { isTrustedFolder: undefined, ...sessionStats },
+    it("should display custom sandbox info when SANDBOX env is set", () => {
+      vi.stubEnv("SANDBOX", "gemini-cli-test-sandbox");
+      const { lastFrame } = renderWithWidth(120, {
+        ...defaultProps,
+        isTrustedFolder: undefined,
       });
-      expect(lastFrame()).toContain('test');
+      expect(lastFrame()).toContain("test");
       vi.unstubAllEnvs();
     });
 
-    it('should display macOS Seatbelt info when SANDBOX is sandbox-exec', () => {
-      vi.stubEnv('SANDBOX', 'sandbox-exec');
-      vi.stubEnv('SEATBELT_PROFILE', 'test-profile');
-      const { lastFrame } = renderWithProviders(<Footer />, {
-        width: 120,
-        uiState: { isTrustedFolder: true, ...sessionStats },
+    it("should display macOS Seatbelt info when SANDBOX is sandbox-exec", () => {
+      vi.stubEnv("SANDBOX", "sandbox-exec");
+      vi.stubEnv("SEATBELT_PROFILE", "test-profile");
+      const { lastFrame } = renderWithWidth(120, {
+        ...defaultProps,
+        isTrustedFolder: true,
       });
       expect(lastFrame()).toMatch(/macOS Seatbelt.*\(test-profile\)/s);
       vi.unstubAllEnvs();
@@ -136,93 +136,24 @@ describe('<Footer />', () => {
 
     it('should display "no sandbox" when SANDBOX is not set and folder is trusted', () => {
       // Clear any SANDBOX env var that might be set.
-      vi.stubEnv('SANDBOX', '');
-      const { lastFrame } = renderWithProviders(<Footer />, {
-        width: 120,
-        uiState: { isTrustedFolder: true, ...sessionStats },
+      vi.stubEnv("SANDBOX", "");
+      const { lastFrame } = renderWithWidth(120, {
+        ...defaultProps,
+        isTrustedFolder: true,
       });
-      expect(lastFrame()).toContain('no sandbox');
+      expect(lastFrame()).toContain("no sandbox");
       vi.unstubAllEnvs();
     });
 
-    it('should prioritize untrusted message over sandbox info', () => {
-      vi.stubEnv('SANDBOX', 'gemini-cli-test-sandbox');
-      const { lastFrame } = renderWithProviders(<Footer />, {
-        width: 120,
-        uiState: { isTrustedFolder: false, ...sessionStats },
+    it("should prioritize untrusted message over sandbox info", () => {
+      vi.stubEnv("SANDBOX", "gemini-cli-test-sandbox");
+      const { lastFrame } = renderWithWidth(120, {
+        ...defaultProps,
+        isTrustedFolder: false,
       });
-      expect(lastFrame()).toContain('untrusted');
+      expect(lastFrame()).toContain("untrusted");
       expect(lastFrame()).not.toMatch(/test-sandbox/s);
       vi.unstubAllEnvs();
-    });
-  });
-
-  describe('footer configuration filtering (golden snapshots)', () => {
-    it('renders complete footer with all sections visible (baseline)', () => {
-      const { lastFrame } = renderWithProviders(<Footer />, {
-        width: 120,
-        uiState: { ...sessionStats },
-      });
-      expect(lastFrame()).toMatchSnapshot('complete-footer-wide');
-    });
-
-    it('renders footer with all optional sections hidden (minimal footer)', () => {
-      const { lastFrame } = renderWithProviders(<Footer />, {
-        width: 120,
-        uiState: { ...sessionStats },
-        settings: createMockSettings({
-          ui: {
-            footer: {
-              hideCWD: true,
-              hideSandboxStatus: true,
-              hideModelInfo: true,
-            },
-          },
-        }),
-      });
-      expect(lastFrame()).toMatchSnapshot('footer-minimal');
-    });
-
-    it('renders footer with only model info hidden (partial filtering)', () => {
-      const { lastFrame } = renderWithProviders(<Footer />, {
-        width: 120,
-        uiState: { ...sessionStats },
-        settings: createMockSettings({
-          ui: {
-            footer: {
-              hideCWD: false,
-              hideSandboxStatus: false,
-              hideModelInfo: true,
-            },
-          },
-        }),
-      });
-      expect(lastFrame()).toMatchSnapshot('footer-no-model');
-    });
-
-    it('renders footer with CWD and model info hidden to test alignment (only sandbox visible)', () => {
-      const { lastFrame } = renderWithProviders(<Footer />, {
-        width: 120,
-        uiState: { ...sessionStats },
-        settings: createMockSettings({
-          ui: {
-            footer: {
-              hideCWD: true,
-              hideSandboxStatus: false,
-              hideModelInfo: true,
-            },
-          },
-        }),
-      });
-      expect(lastFrame()).toMatchSnapshot('footer-only-sandbox');
-    });
-
-    it('renders complete footer in narrow terminal (baseline narrow)', () => {
-      const { lastFrame } = renderWithProviders(<Footer />, {
-        width: 79,
-        uiState: { ...sessionStats },
-      });
-      expect(lastFrame()).toMatchSnapshot('complete-footer-narrow');
     });
   });
 });

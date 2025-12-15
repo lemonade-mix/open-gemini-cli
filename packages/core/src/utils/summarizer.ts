@@ -4,15 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ToolResult } from '../tools/tools.js';
-import type {
-  Content,
-  GenerateContentConfig,
-  GenerateContentResponse,
-} from '@google/genai';
-import type { GeminiClient } from '../core/client.js';
-import { DEFAULT_GEMINI_FLASH_LITE_MODEL } from '../config/models.js';
-import { getResponseText, partToString } from './partUtils.js';
+import type { ToolResult } from "../tools/tools.js";
+import type { Content, GenerateContentResponse } from "@google/genai";
+import type { GenerateContentConfig } from "../core/contentGenerator.js";
+import type { KaiDexClient } from "../core/client.js";
+import { DEFAULT_KAIDEX_FLASH_LITE_MODEL } from "../config/models.js";
+import { getResponseText, partToString } from "./partUtils.js";
+import { googleContentArrayToKaidex } from "./typeAdapters.js";
 
 /**
  * A function that summarizes the result of a tool execution.
@@ -22,7 +20,7 @@ import { getResponseText, partToString } from './partUtils.js';
  */
 export type Summarizer = (
   result: ToolResult,
-  geminiClient: GeminiClient,
+  geminiClient: KaiDexClient,
   abortSignal: AbortSignal,
 ) => Promise<string>;
 
@@ -30,13 +28,13 @@ export type Summarizer = (
  * The default summarizer for tool results.
  *
  * @param result The result of the tool execution.
- * @param geminiClient The Gemini client to use for summarization.
+ * @param geminiClient The KaiDex client to use for summarization.
  * @param abortSignal The abort signal to use for summarization.
  * @returns The summary of the result.
  */
 export const defaultSummarizer: Summarizer = (
   result: ToolResult,
-  _geminiClient: GeminiClient,
+  _geminiClient: KaiDexClient,
   _abortSignal: AbortSignal,
 ) => Promise.resolve(JSON.stringify(result.llmContent));
 
@@ -63,7 +61,7 @@ export const llmSummarizer: Summarizer = (result, geminiClient, abortSignal) =>
 
 export async function summarizeToolOutput(
   textToSummarize: string,
-  geminiClient: GeminiClient,
+  geminiClient: KaiDexClient,
   abortSignal: AbortSignal,
   maxOutputTokens: number = 2000,
 ): Promise<string> {
@@ -73,24 +71,24 @@ export async function summarizeToolOutput(
     return textToSummarize;
   }
   const prompt = SUMMARIZE_TOOL_OUTPUT_PROMPT.replace(
-    '{maxOutputTokens}',
+    "{maxOutputTokens}",
     String(maxOutputTokens),
-  ).replace('{textToSummarize}', textToSummarize);
+  ).replace("{textToSummarize}", textToSummarize);
 
-  const contents: Content[] = [{ role: 'user', parts: [{ text: prompt }] }];
+  const contents: Content[] = [{ role: "user", parts: [{ text: prompt }] }];
   const toolOutputSummarizerConfig: GenerateContentConfig = {
     maxOutputTokens,
   };
   try {
     const parsedResponse = (await geminiClient.generateContent(
-      contents,
+      googleContentArrayToKaidex(contents),
       toolOutputSummarizerConfig,
       abortSignal,
-      DEFAULT_GEMINI_FLASH_LITE_MODEL,
+      DEFAULT_KAIDEX_FLASH_LITE_MODEL,
     )) as unknown as GenerateContentResponse;
     return getResponseText(parsedResponse) || textToSummarize;
   } catch (error) {
-    console.error('Failed to summarize tool output.', error);
+    console.error("Failed to summarize tool output.", error);
     return textToSummarize;
   }
 }

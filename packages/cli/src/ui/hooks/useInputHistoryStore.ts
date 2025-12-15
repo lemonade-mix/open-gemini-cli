@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback } from "react";
 
 interface Logger {
   getPreviousUserMessages(): Promise<string[]>;
@@ -69,7 +69,7 @@ export function useInputHistoryStore(): UseInputHistoryStoreReturn {
         setIsInitialized(true);
       } catch (error) {
         // Start with empty history even if logger initialization fails
-        console.warn('Failed to initialize input history from logger:', error);
+        console.warn("Failed to initialize input history from logger:", error);
         setPastSessionMessages([]);
         recalculateHistory([], []);
         setIsInitialized(true);

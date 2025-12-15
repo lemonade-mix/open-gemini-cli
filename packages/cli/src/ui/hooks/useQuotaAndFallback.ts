@@ -9,13 +9,14 @@ import {
   type Config,
   type FallbackModelHandler,
   type FallbackIntent,
-  TerminalQuotaError,
+  isGenericQuotaExceededError,
+  isProQuotaExceededError,
   UserTierId,
-} from '@google/gemini-cli-core';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { type UseHistoryManagerReturn } from './useHistoryManager.js';
-import { AuthState, MessageType } from '../types.js';
-import { type ProQuotaDialogRequest } from '../contexts/UIStateContext.js';
+} from "@google/kaidex-cli-core";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { type UseHistoryManagerReturn } from "./useHistoryManager.js";
+import { AuthState, MessageType } from "../types.js";
+import { type ProQuotaDialogRequest } from "../contexts/UIStateContext.js";
 
 interface UseQuotaAndFallbackArgs {
   config: Config;
@@ -62,7 +63,7 @@ export function useQuotaAndFallback({
 
       let message: string;
 
-      if (error instanceof TerminalQuotaError) {
+      if (error && isProQuotaExceededError(error)) {
         // Pro Quota specific messages (Interactive)
         if (isPaidTier) {
           message = `⚡ You have reached your daily ${failedModel} quota limit.
@@ -71,8 +72,21 @@ export function useQuotaAndFallback({
         } else {
           message = `⚡ You have reached your daily ${failedModel} quota limit.
 ⚡ You can choose to authenticate with a paid API key or continue with the fallback model.
-⚡ To increase your limits, upgrade to a Gemini Code Assist Standard or Enterprise plan with higher limits at https://goo.gle/set-up-gemini-code-assist
-⚡ Or you can utilize a Gemini API Key. See: https://goo.gle/gemini-cli-docs-auth#gemini-api-key
+⚡ To increase your limits, upgrade to a KaiDex Code Assist Standard or Enterprise plan with higher limits at https://goo.gle/set-up-gemini-code-assist
+⚡ Or you can utilize a KaiDex API Key. See: https://goo.gle/gemini-cli-docs-auth#gemini-api-key
+⚡ You can switch authentication methods by typing /auth`;
+        }
+      } else if (error && isGenericQuotaExceededError(error)) {
+        // Generic Quota (Automatic fallback)
+        const actionMessage = `⚡ You have reached your daily quota limit.\n⚡ Automatically switching from ${failedModel} to ${fallbackModel} for the remainder of this session.`;
+
+        if (isPaidTier) {
+          message = `${actionMessage}
+⚡ To continue accessing the ${failedModel} model today, consider using /auth to switch to using a paid API key from AI Studio at https://aistudio.google.com/apikey`;
+        } else {
+          message = `${actionMessage}
+⚡ To increase your limits, upgrade to a KaiDex Code Assist Standard or Enterprise plan with higher limits at https://goo.gle/set-up-gemini-code-assist
+⚡ Or you can utilize a KaiDex API Key. See: https://goo.gle/gemini-cli-docs-auth#gemini-api-key
 ⚡ You can switch authentication methods by typing /auth`;
         }
       } else {
@@ -86,8 +100,8 @@ export function useQuotaAndFallback({
         } else {
           message = `${actionMessage}
 ⚡ Possible reasons for this are that you have received multiple consecutive capacity errors or you have reached your daily ${failedModel} quota limit
-⚡ To increase your limits, upgrade to a Gemini Code Assist Standard or Enterprise plan with higher limits at https://goo.gle/set-up-gemini-code-assist
-⚡ Or you can utilize a Gemini API Key. See: https://goo.gle/gemini-cli-docs-auth#gemini-api-key
+⚡ To increase your limits, upgrade to a KaiDex Code Assist Standard or Enterprise plan with higher limits at https://goo.gle/set-up-gemini-code-assist
+⚡ Or you can utilize a KaiDex API Key. See: https://goo.gle/gemini-cli-docs-auth#gemini-api-key
 ⚡ You can switch authentication methods by typing /auth`;
         }
       }
@@ -105,9 +119,9 @@ export function useQuotaAndFallback({
       config.setQuotaErrorOccurred(true);
 
       // Interactive Fallback for Pro quota
-      if (error instanceof TerminalQuotaError) {
+      if (error && isProQuotaExceededError(error)) {
         if (isDialogPending.current) {
-          return 'stop'; // A dialog is already active, so just stop this request.
+          return "stop"; // A dialog is already active, so just stop this request.
         }
         isDialogPending.current = true;
 
@@ -124,28 +138,28 @@ export function useQuotaAndFallback({
         return intent;
       }
 
-      return 'stop';
+      return "stop";
     };
 
     config.setFallbackModelHandler(fallbackHandler);
   }, [config, historyManager, userTier, setModelSwitchedFromQuotaError]);
 
   const handleProQuotaChoice = useCallback(
-    (choice: 'auth' | 'continue') => {
+    (choice: "auth" | "continue") => {
       if (!proQuotaRequest) return;
 
-      const intent: FallbackIntent = choice === 'auth' ? 'auth' : 'retry';
+      const intent: FallbackIntent = choice === "auth" ? "auth" : "retry";
       proQuotaRequest.resolve(intent);
       setProQuotaRequest(null);
       isDialogPending.current = false; // Reset the flag here
 
-      if (choice === 'auth') {
+      if (choice === "auth") {
         setAuthState(AuthState.Updating);
       } else {
         historyManager.addItem(
           {
             type: MessageType.INFO,
-            text: 'Switched to fallback model. Tip: Press Ctrl+P (or Up Arrow) to recall your previous prompt and submit it again if you wish.',
+            text: "Switched to fallback model. Tip: Press Ctrl+P (or Up Arrow) to recall your previous prompt and submit it again if you wish.",
           },
           Date.now(),
         );

@@ -4,30 +4,30 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from "vitest";
 import {
   getSettingsSchema,
   type SettingDefinition,
   type Settings,
   type SettingsSchema,
-} from './settingsSchema.js';
+} from "./settingsSchema.js";
 
-describe('SettingsSchema', () => {
-  describe('getSettingsSchema', () => {
-    it('should contain all expected top-level settings', () => {
+describe("SettingsSchema", () => {
+  describe("getSettingsSchema", () => {
+    it("should contain all expected top-level settings", () => {
       const expectedSettings: Array<keyof Settings> = [
-        'mcpServers',
-        'general',
-        'ui',
-        'ide',
-        'privacy',
-        'telemetry',
-        'model',
-        'context',
-        'tools',
-        'mcp',
-        'security',
-        'advanced',
+        "mcpServers",
+        "general",
+        "ui",
+        "ide",
+        "privacy",
+        "telemetry",
+        "model",
+        "context",
+        "tools",
+        "mcp",
+        "security",
+        "advanced",
       ];
 
       expectedSettings.forEach((setting) => {
@@ -35,55 +35,55 @@ describe('SettingsSchema', () => {
       });
     });
 
-    it('should have correct structure for each setting', () => {
+    it("should have correct structure for each setting", () => {
       Object.entries(getSettingsSchema()).forEach(([_key, definition]) => {
-        expect(definition).toHaveProperty('type');
-        expect(definition).toHaveProperty('label');
-        expect(definition).toHaveProperty('category');
-        expect(definition).toHaveProperty('requiresRestart');
-        expect(definition).toHaveProperty('default');
-        expect(typeof definition.type).toBe('string');
-        expect(typeof definition.label).toBe('string');
-        expect(typeof definition.category).toBe('string');
-        expect(typeof definition.requiresRestart).toBe('boolean');
+        expect(definition).toHaveProperty("type");
+        expect(definition).toHaveProperty("label");
+        expect(definition).toHaveProperty("category");
+        expect(definition).toHaveProperty("requiresRestart");
+        expect(definition).toHaveProperty("default");
+        expect(typeof definition.type).toBe("string");
+        expect(typeof definition.label).toBe("string");
+        expect(typeof definition.category).toBe("string");
+        expect(typeof definition.requiresRestart).toBe("boolean");
       });
     });
 
-    it('should have correct nested setting structure', () => {
+    it("should have correct nested setting structure", () => {
       const nestedSettings: Array<keyof Settings> = [
-        'general',
-        'ui',
-        'ide',
-        'privacy',
-        'model',
-        'context',
-        'tools',
-        'mcp',
-        'security',
-        'advanced',
+        "general",
+        "ui",
+        "ide",
+        "privacy",
+        "model",
+        "context",
+        "tools",
+        "mcp",
+        "security",
+        "advanced",
       ];
 
       nestedSettings.forEach((setting) => {
         const definition = getSettingsSchema()[
           setting as keyof Settings
         ] as SettingDefinition;
-        expect(definition.type).toBe('object');
+        expect(definition.type).toBe("object");
         expect(definition.properties).toBeDefined();
-        expect(typeof definition.properties).toBe('object');
+        expect(typeof definition.properties).toBe("object");
       });
     });
 
-    it('should have accessibility nested properties', () => {
+    it("should have accessibility nested properties", () => {
       expect(
         getSettingsSchema().ui?.properties?.accessibility?.properties,
       ).toBeDefined();
       expect(
         getSettingsSchema().ui?.properties?.accessibility.properties
           ?.disableLoadingPhrases.type,
-      ).toBe('boolean');
+      ).toBe("boolean");
     });
 
-    it('should have checkpointing nested properties', () => {
+    it("should have checkpointing nested properties", () => {
       expect(
         getSettingsSchema().general?.properties?.checkpointing.properties
           ?.enabled,
@@ -91,10 +91,10 @@ describe('SettingsSchema', () => {
       expect(
         getSettingsSchema().general?.properties?.checkpointing.properties
           ?.enabled.type,
-      ).toBe('boolean');
+      ).toBe("boolean");
     });
 
-    it('should have fileFiltering nested properties', () => {
+    it("should have fileFiltering nested properties", () => {
       expect(
         getSettingsSchema().context.properties.fileFiltering.properties
           ?.respectGitIgnore,
@@ -109,7 +109,7 @@ describe('SettingsSchema', () => {
       ).toBeDefined();
     });
 
-    it('should have unique categories', () => {
+    it("should have unique categories", () => {
       const categories = new Set();
 
       // Collect categories from top-level settings
@@ -132,18 +132,18 @@ describe('SettingsSchema', () => {
       });
 
       expect(categories.size).toBeGreaterThan(0);
-      expect(categories).toContain('General');
-      expect(categories).toContain('UI');
-      expect(categories).toContain('Advanced');
+      expect(categories).toContain("General");
+      expect(categories).toContain("UI");
+      expect(categories).toContain("Advanced");
     });
 
-    it('should have consistent default values for boolean settings', () => {
+    it("should have consistent default values for boolean settings", () => {
       const checkBooleanDefaults = (schema: SettingsSchema) => {
         Object.entries(schema).forEach(([, definition]) => {
           const def = definition as SettingDefinition;
-          if (def.type === 'boolean') {
+          if (def.type === "boolean") {
             // Boolean settings can have boolean or undefined defaults (for optional settings)
-            expect(['boolean', 'undefined']).toContain(typeof def.default);
+            expect(["boolean", "undefined"]).toContain(typeof def.default);
           }
           if (def.properties) {
             checkBooleanDefaults(def.properties);
@@ -154,7 +154,7 @@ describe('SettingsSchema', () => {
       checkBooleanDefaults(getSettingsSchema() as SettingsSchema);
     });
 
-    it('should have showInDialog property configured', () => {
+    it("should have showInDialog property configured", () => {
       // Check that user-facing settings are marked for dialog display
       expect(
         getSettingsSchema().ui.properties.showMemoryUsage.showInDialog,
@@ -215,40 +215,40 @@ describe('SettingsSchema', () => {
       ).toBe(false);
     });
 
-    it('should infer Settings type correctly', () => {
+    it("should infer Settings type correctly", () => {
       // This test ensures that the Settings type is properly inferred from the schema
       const settings: Settings = {
         ui: {
-          theme: 'dark',
+          theme: "dark",
         },
         context: {
-          includeDirectories: ['/path/to/dir'],
+          includeDirectories: ["/path/to/dir"],
           loadMemoryFromIncludeDirectories: true,
         },
       };
 
       // TypeScript should not complain about these properties
-      expect(settings.ui?.theme).toBe('dark');
-      expect(settings.context?.includeDirectories).toEqual(['/path/to/dir']);
+      expect(settings.ui?.theme).toBe("dark");
+      expect(settings.context?.includeDirectories).toEqual(["/path/to/dir"]);
       expect(settings.context?.loadMemoryFromIncludeDirectories).toBe(true);
     });
 
-    it('should have includeDirectories setting in schema', () => {
+    it("should have includeDirectories setting in schema", () => {
       expect(
         getSettingsSchema().context?.properties.includeDirectories,
       ).toBeDefined();
       expect(
         getSettingsSchema().context?.properties.includeDirectories.type,
-      ).toBe('array');
+      ).toBe("array");
       expect(
         getSettingsSchema().context?.properties.includeDirectories.category,
-      ).toBe('Context');
+      ).toBe("Context");
       expect(
         getSettingsSchema().context?.properties.includeDirectories.default,
       ).toEqual([]);
     });
 
-    it('should have loadMemoryFromIncludeDirectories setting in schema', () => {
+    it("should have loadMemoryFromIncludeDirectories setting in schema", () => {
       expect(
         getSettingsSchema().context?.properties
           .loadMemoryFromIncludeDirectories,
@@ -256,29 +256,29 @@ describe('SettingsSchema', () => {
       expect(
         getSettingsSchema().context?.properties.loadMemoryFromIncludeDirectories
           .type,
-      ).toBe('boolean');
+      ).toBe("boolean");
       expect(
         getSettingsSchema().context?.properties.loadMemoryFromIncludeDirectories
           .category,
-      ).toBe('Context');
+      ).toBe("Context");
       expect(
         getSettingsSchema().context?.properties.loadMemoryFromIncludeDirectories
           .default,
       ).toBe(false);
     });
 
-    it('should have folderTrustFeature setting in schema', () => {
+    it("should have folderTrustFeature setting in schema", () => {
       expect(
         getSettingsSchema().security.properties.folderTrust.properties.enabled,
       ).toBeDefined();
       expect(
         getSettingsSchema().security.properties.folderTrust.properties.enabled
           .type,
-      ).toBe('boolean');
+      ).toBe("boolean");
       expect(
         getSettingsSchema().security.properties.folderTrust.properties.enabled
           .category,
-      ).toBe('Security');
+      ).toBe("Security");
       expect(
         getSettingsSchema().security.properties.folderTrust.properties.enabled
           .default,
@@ -289,16 +289,16 @@ describe('SettingsSchema', () => {
       ).toBe(true);
     });
 
-    it('should have debugKeystrokeLogging setting in schema', () => {
+    it("should have debugKeystrokeLogging setting in schema", () => {
       expect(
         getSettingsSchema().general.properties.debugKeystrokeLogging,
       ).toBeDefined();
       expect(
         getSettingsSchema().general.properties.debugKeystrokeLogging.type,
-      ).toBe('boolean');
+      ).toBe("boolean");
       expect(
         getSettingsSchema().general.properties.debugKeystrokeLogging.category,
-      ).toBe('General');
+      ).toBe("General");
       expect(
         getSettingsSchema().general.properties.debugKeystrokeLogging.default,
       ).toBe(false);
@@ -313,41 +313,7 @@ describe('SettingsSchema', () => {
       expect(
         getSettingsSchema().general.properties.debugKeystrokeLogging
           .description,
-      ).toBe('Enable debug logging of keystrokes to the console.');
-    });
-
-    it('should have useModelRouter setting in schema', () => {
-      expect(
-        getSettingsSchema().experimental.properties.useModelRouter,
-      ).toBeDefined();
-      expect(
-        getSettingsSchema().experimental.properties.useModelRouter.type,
-      ).toBe('boolean');
-      expect(
-        getSettingsSchema().experimental.properties.useModelRouter.category,
-      ).toBe('Experimental');
-      expect(
-        getSettingsSchema().experimental.properties.useModelRouter.default,
-      ).toBe(false);
-    });
-
-    it('should have enableSubagents setting in schema', () => {
-      expect(
-        getSettingsSchema().experimental.properties.enableSubagents,
-      ).toBeDefined();
-      expect(
-        getSettingsSchema().experimental.properties.enableSubagents.type,
-      ).toBe('boolean');
-      expect(
-        getSettingsSchema().experimental.properties.enableSubagents.category,
-      ).toBe('Experimental');
-      expect(
-        getSettingsSchema().experimental.properties.enableSubagents.default,
-      ).toBe(false);
-      expect(
-        getSettingsSchema().experimental.properties.enableSubagents
-          .requiresRestart,
-      ).toBe(true);
+      ).toBe("Enable debug logging of keystrokes to the console.");
     });
   });
 });

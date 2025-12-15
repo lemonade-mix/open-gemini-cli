@@ -25,8 +25,8 @@ import type {
   ThinkingConfig,
   ToolListUnion,
   ToolConfig,
-} from '@google/genai';
-import { GenerateContentResponse } from '@google/genai';
+} from "@google/genai";
+import { GenerateContentResponse } from "@google/genai";
 
 export interface CAGenerateContentRequest {
   model: string;
@@ -80,7 +80,6 @@ interface VertexGenerateContentResponse {
   automaticFunctionCallingHistory?: Content[];
   promptFeedback?: GenerateContentResponsePromptFeedback;
   usageMetadata?: GenerateContentResponseUsageMetadata;
-  modelVersion?: string;
 }
 
 export interface CaCountTokenRequest {
@@ -101,7 +100,7 @@ export function toCountTokenRequest(
 ): CaCountTokenRequest {
   return {
     request: {
-      model: 'models/' + req.model,
+      model: "models/" + req.model,
       contents: toContents(req.contents),
     },
   };
@@ -138,7 +137,6 @@ export function fromGenerateContentResponse(
   out.automaticFunctionCallingHistory = inres.automaticFunctionCallingHistory;
   out.promptFeedback = inres.promptFeedback;
   out.usageMetadata = inres.usageMetadata;
-  out.modelVersion = inres.modelVersion;
   return out;
 }
 
@@ -179,18 +177,18 @@ function toContent(content: ContentUnion): Content {
   if (Array.isArray(content)) {
     // it's a PartsUnion[]
     return {
-      role: 'user',
+      role: "user",
       parts: toParts(content),
     };
   }
-  if (typeof content === 'string') {
+  if (typeof content === "string") {
     // it's a string
     return {
-      role: 'user',
+      role: "user",
       parts: [{ text: content }],
     };
   }
-  if ('parts' in content) {
+  if ("parts" in content) {
     // it's a Content - process parts to handle thought filtering
     return {
       ...content,
@@ -201,7 +199,7 @@ function toContent(content: ContentUnion): Content {
   }
   // it's a Part
   return {
-    role: 'user',
+    role: "user",
     parts: [toPart(content as Part)],
   };
 }
@@ -211,7 +209,7 @@ export function toParts(parts: PartUnion[]): Part[] {
 }
 
 function toPart(part: PartUnion): Part {
-  if (typeof part === 'string') {
+  if (typeof part === "string") {
     // it's a string
     return { text: part };
   }
@@ -219,17 +217,17 @@ function toPart(part: PartUnion): Part {
   // Handle thought parts for CountToken API compatibility
   // The CountToken API expects parts to have certain required "oneof" fields initialized,
   // but thought parts don't conform to this schema and cause API failures
-  if ('thought' in part && part.thought) {
+  if ("thought" in part && part.thought) {
     const thoughtText = `[Thought: ${part.thought}]`;
 
     const newPart = { ...part };
-    delete (newPart as Record<string, unknown>)['thought'];
+    delete (newPart as Record<string, unknown>)["thought"];
 
     const hasApiContent =
-      'functionCall' in newPart ||
-      'functionResponse' in newPart ||
-      'inlineData' in newPart ||
-      'fileData' in newPart;
+      "functionCall" in newPart ||
+      "functionResponse" in newPart ||
+      "inlineData" in newPart ||
+      "fileData" in newPart;
 
     if (hasApiContent) {
       // It's a functionCall or other non-text part. Just strip the thought.
@@ -239,7 +237,7 @@ function toPart(part: PartUnion): Part {
     // If no other valid API content, this must be a text part.
     // Combine existing text (if any) with the thought, preserving other properties.
     const text = (newPart as { text?: unknown }).text;
-    const existingText = text ? String(text) : '';
+    const existingText = text ? String(text) : "";
     const combinedText = existingText
       ? `${existingText}\n${thoughtText}`
       : thoughtText;

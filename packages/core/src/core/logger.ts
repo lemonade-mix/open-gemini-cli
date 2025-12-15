@@ -4,15 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import path from 'node:path';
-import { promises as fs } from 'node:fs';
-import type { Content } from '@google/genai';
-import type { Storage } from '../config/storage.js';
+import path from "node:path";
+import { promises as fs } from "node:fs";
+import type { Content } from "@google/genai";
+import type { Storage } from "../config/storage.js";
 
-const LOG_FILE_NAME = 'logs.json';
+const LOG_FILE_NAME = "logs.json";
 
 export enum MessageSenderType {
-  USER = 'user',
+  USER = "user",
 }
 
 export interface LogEntry {
@@ -60,7 +60,7 @@ export function decodeTagName(str: string): string {
 }
 
 export class Logger {
-  private geminiDir: string | undefined;
+  private kaidexDir: string | undefined;
   private logFilePath: string | undefined;
   private sessionId: string | undefined;
   private messageId = 0; // Instance-specific counter for the next messageId
@@ -76,29 +76,29 @@ export class Logger {
 
   private async _readLogFile(): Promise<LogEntry[]> {
     if (!this.logFilePath) {
-      throw new Error('Log file path not set during read attempt.');
+      throw new Error("Log file path not set during read attempt.");
     }
     try {
-      const fileContent = await fs.readFile(this.logFilePath, 'utf-8');
+      const fileContent = await fs.readFile(this.logFilePath, "utf-8");
       const parsedLogs = JSON.parse(fileContent);
       if (!Array.isArray(parsedLogs)) {
         console.debug(
           `Log file at ${this.logFilePath} is not a valid JSON array. Starting with empty logs.`,
         );
-        await this._backupCorruptedLogFile('malformed_array');
+        await this._backupCorruptedLogFile("malformed_array");
         return [];
       }
       return parsedLogs.filter(
         (entry) =>
-          typeof entry.sessionId === 'string' &&
-          typeof entry.messageId === 'number' &&
-          typeof entry.timestamp === 'string' &&
-          typeof entry.type === 'string' &&
-          typeof entry.message === 'string',
+          typeof entry.sessionId === "string" &&
+          typeof entry.messageId === "number" &&
+          typeof entry.timestamp === "string" &&
+          typeof entry.type === "string" &&
+          typeof entry.message === "string",
       ) as LogEntry[];
     } catch (error) {
       const nodeError = error as NodeJS.ErrnoException;
-      if (nodeError.code === 'ENOENT') {
+      if (nodeError.code === "ENOENT") {
         return [];
       }
       if (error instanceof SyntaxError) {
@@ -106,7 +106,7 @@ export class Logger {
           `Invalid JSON in log file ${this.logFilePath}. Backing up and starting fresh.`,
           error,
         );
-        await this._backupCorruptedLogFile('invalid_json');
+        await this._backupCorruptedLogFile("invalid_json");
         return [];
       }
       console.debug(
@@ -133,11 +133,11 @@ export class Logger {
       return;
     }
 
-    this.geminiDir = this.storage.getProjectTempDir();
-    this.logFilePath = path.join(this.geminiDir, LOG_FILE_NAME);
+    this.kaidexDir = this.storage.getProjectTempDir();
+    this.logFilePath = path.join(this.kaidexDir, LOG_FILE_NAME);
 
     try {
-      await fs.mkdir(this.geminiDir, { recursive: true });
+      await fs.mkdir(this.kaidexDir, { recursive: true });
       let fileExisted = true;
       try {
         await fs.access(this.logFilePath);
@@ -146,7 +146,7 @@ export class Logger {
       }
       this.logs = await this._readLogFile();
       if (!fileExisted && this.logs.length === 0) {
-        await fs.writeFile(this.logFilePath, '[]', 'utf-8');
+        await fs.writeFile(this.logFilePath, "[]", "utf-8");
       }
       const sessionLogs = this.logs.filter(
         (entry) => entry.sessionId === this.sessionId,
@@ -157,7 +157,7 @@ export class Logger {
           : 0;
       this.initialized = true;
     } catch (err) {
-      console.error('Failed to initialize logger:', err);
+      console.error("Failed to initialize logger:", err);
       this.initialized = false;
     }
   }
@@ -166,8 +166,8 @@ export class Logger {
     entryToAppend: LogEntry,
   ): Promise<LogEntry | null> {
     if (!this.logFilePath) {
-      console.debug('Log file path not set. Cannot persist log entry.');
-      throw new Error('Log file path not set during update attempt.');
+      console.debug("Log file path not set. Cannot persist log entry.");
+      throw new Error("Log file path not set during update attempt.");
     }
 
     let currentLogsOnDisk: LogEntry[];
@@ -175,7 +175,7 @@ export class Logger {
       currentLogsOnDisk = await this._readLogFile();
     } catch (readError) {
       console.debug(
-        'Critical error reading log file before append:',
+        "Critical error reading log file before append:",
         readError,
       );
       throw readError;
@@ -218,12 +218,12 @@ export class Logger {
       await fs.writeFile(
         this.logFilePath,
         JSON.stringify(currentLogsOnDisk, null, 2),
-        'utf-8',
+        "utf-8",
       );
       this.logs = currentLogsOnDisk;
       return entryToAppend; // Return the successfully appended entry
     } catch (error) {
-      console.debug('Error writing to log file:', error);
+      console.debug("Error writing to log file:", error);
       throw error;
     }
   }
@@ -243,7 +243,7 @@ export class Logger {
   async logMessage(type: MessageSenderType, message: string): Promise<void> {
     if (!this.initialized || this.sessionId === undefined) {
       console.debug(
-        'Logger not initialized or session ID missing. Cannot log message.',
+        "Logger not initialized or session ID missing. Cannot log message.",
       );
       return;
     }
@@ -272,14 +272,14 @@ export class Logger {
 
   private _checkpointPath(tag: string): string {
     if (!tag.length) {
-      throw new Error('No checkpoint tag specified.');
+      throw new Error("No checkpoint tag specified.");
     }
-    if (!this.geminiDir) {
-      throw new Error('Checkpoint file path not set.');
+    if (!this.kaidexDir) {
+      throw new Error("Checkpoint file path not set.");
     }
     // Encode the tag to handle all special characters safely.
     const encodedTag = encodeTagName(tag);
-    return path.join(this.geminiDir, `checkpoint-${encodedTag}.json`);
+    return path.join(this.kaidexDir, `checkpoint-${encodedTag}.json`);
   }
 
   private async _getCheckpointPath(tag: string): Promise<string> {
@@ -290,20 +290,20 @@ export class Logger {
       return newPath; // Found it, use the new path.
     } catch (error) {
       const nodeError = error as NodeJS.ErrnoException;
-      if (nodeError.code !== 'ENOENT') {
+      if (nodeError.code !== "ENOENT") {
         throw error; // A real error occurred, rethrow it.
       }
       // It was not found, so we'll check the old path next.
     }
 
     // 2. Fallback for backward compatibility: check for the old raw path.
-    const oldPath = path.join(this.geminiDir!, `checkpoint-${tag}.json`);
+    const oldPath = path.join(this.kaidexDir!, `checkpoint-${tag}.json`);
     try {
       await fs.access(oldPath);
       return oldPath; // Found it, use the old path.
     } catch (error) {
       const nodeError = error as NodeJS.ErrnoException;
-      if (nodeError.code !== 'ENOENT') {
+      if (nodeError.code !== "ENOENT") {
         throw error; // A real error occurred, rethrow it.
       }
     }
@@ -315,30 +315,30 @@ export class Logger {
   async saveCheckpoint(conversation: Content[], tag: string): Promise<void> {
     if (!this.initialized) {
       console.error(
-        'Logger not initialized or checkpoint file path not set. Cannot save a checkpoint.',
+        "Logger not initialized or checkpoint file path not set. Cannot save a checkpoint.",
       );
       return;
     }
     // Always save with the new encoded path.
     const path = this._checkpointPath(tag);
     try {
-      await fs.writeFile(path, JSON.stringify(conversation, null, 2), 'utf-8');
+      await fs.writeFile(path, JSON.stringify(conversation, null, 2), "utf-8");
     } catch (error) {
-      console.error('Error writing to checkpoint file:', error);
+      console.error("Error writing to checkpoint file:", error);
     }
   }
 
   async loadCheckpoint(tag: string): Promise<Content[]> {
     if (!this.initialized) {
       console.error(
-        'Logger not initialized or checkpoint file path not set. Cannot load checkpoint.',
+        "Logger not initialized or checkpoint file path not set. Cannot load checkpoint.",
       );
       return [];
     }
 
     const path = await this._getCheckpointPath(tag);
     try {
-      const fileContent = await fs.readFile(path, 'utf-8');
+      const fileContent = await fs.readFile(path, "utf-8");
       const parsedContent = JSON.parse(fileContent);
       if (!Array.isArray(parsedContent)) {
         console.warn(
@@ -349,7 +349,7 @@ export class Logger {
       return parsedContent as Content[];
     } catch (error) {
       const nodeError = error as NodeJS.ErrnoException;
-      if (nodeError.code === 'ENOENT') {
+      if (nodeError.code === "ENOENT") {
         // This is okay, it just means the checkpoint doesn't exist in either format.
         return [];
       }
@@ -359,9 +359,9 @@ export class Logger {
   }
 
   async deleteCheckpoint(tag: string): Promise<boolean> {
-    if (!this.initialized || !this.geminiDir) {
+    if (!this.initialized || !this.kaidexDir) {
       console.error(
-        'Logger not initialized or checkpoint file path not set. Cannot delete checkpoint.',
+        "Logger not initialized or checkpoint file path not set. Cannot delete checkpoint.",
       );
       return false;
     }
@@ -375,7 +375,7 @@ export class Logger {
       deletedSomething = true;
     } catch (error) {
       const nodeError = error as NodeJS.ErrnoException;
-      if (nodeError.code !== 'ENOENT') {
+      if (nodeError.code !== "ENOENT") {
         console.error(`Failed to delete checkpoint file ${newPath}:`, error);
         throw error; // Rethrow unexpected errors
       }
@@ -383,14 +383,14 @@ export class Logger {
     }
 
     // 2. Attempt to delete the old raw path for backward compatibility.
-    const oldPath = path.join(this.geminiDir!, `checkpoint-${tag}.json`);
+    const oldPath = path.join(this.kaidexDir!, `checkpoint-${tag}.json`);
     if (newPath !== oldPath) {
       try {
         await fs.unlink(oldPath);
         deletedSomething = true;
       } catch (error) {
         const nodeError = error as NodeJS.ErrnoException;
-        if (nodeError.code !== 'ENOENT') {
+        if (nodeError.code !== "ENOENT") {
           console.error(`Failed to delete checkpoint file ${oldPath}:`, error);
           throw error; // Rethrow unexpected errors
         }
@@ -404,7 +404,7 @@ export class Logger {
   async checkpointExists(tag: string): Promise<boolean> {
     if (!this.initialized) {
       throw new Error(
-        'Logger not initialized. Cannot check for checkpoint existence.',
+        "Logger not initialized. Cannot check for checkpoint existence.",
       );
     }
     let filePath: string | undefined;
@@ -416,7 +416,7 @@ export class Logger {
       return true;
     } catch (error) {
       const nodeError = error as NodeJS.ErrnoException;
-      if (nodeError.code === 'ENOENT') {
+      if (nodeError.code === "ENOENT") {
         return false; // It truly doesn't exist in either format.
       }
       // A different error occurred.

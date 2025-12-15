@@ -4,19 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Box, Static } from 'ink';
-import { HistoryItemDisplay } from './HistoryItemDisplay.js';
-import { ShowMoreLines } from './ShowMoreLines.js';
-import { OverflowProvider } from '../contexts/OverflowContext.js';
-import { useUIState } from '../contexts/UIStateContext.js';
-import { useAppContext } from '../contexts/AppContext.js';
-import { AppHeader } from './AppHeader.js';
-
-// Limit Gemini messages to a very high number of lines to mitigate performance
-// issues in the worst case if we somehow get an enormous response from Gemini.
-// This threshold is arbitrary but should be high enough to never impact normal
-// usage.
-const MAX_GEMINI_MESSAGE_LINES = 65536;
+import { Box, Static } from "ink";
+import { HistoryItemDisplay } from "./HistoryItemDisplay.js";
+import { ShowMoreLines } from "./ShowMoreLines.js";
+import { OverflowProvider } from "../contexts/OverflowContext.js";
+import { useUIState } from "../contexts/UIStateContext.js";
+import { useAppContext } from "../contexts/AppContext.js";
+import { AppHeader } from "./AppHeader.js";
 
 export const MainContent = () => {
   const { version } = useAppContext();
@@ -38,7 +32,6 @@ export const MainContent = () => {
             <HistoryItemDisplay
               terminalWidth={mainAreaWidth}
               availableTerminalHeight={staticAreaMaxItemHeight}
-              availableTerminalHeightGemini={MAX_GEMINI_MESSAGE_LINES}
               key={h.id}
               item={h}
               isPending={false}
@@ -50,7 +43,7 @@ export const MainContent = () => {
         {(item) => item}
       </Static>
       <OverflowProvider>
-        <Box flexDirection="column" width={mainAreaWidth}>
+        <Box flexDirection="column">
           {pendingHistoryItems.map((item, i) => (
             <HistoryItemDisplay
               key={i}
@@ -61,8 +54,6 @@ export const MainContent = () => {
               item={{ ...item, id: 0 }}
               isPending={true}
               isFocused={!uiState.isEditorDialogOpen}
-              activeShellPtyId={uiState.activePtyId}
-              embeddedShellFocused={uiState.embeddedShellFocused}
             />
           ))}
           <ShowMoreLines constrainHeight={uiState.constrainHeight} />

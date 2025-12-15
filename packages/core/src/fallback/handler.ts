@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { Config } from '../config/config.js';
-import { AuthType } from '../core/contentGenerator.js';
-import { DEFAULT_GEMINI_FLASH_MODEL } from '../config/models.js';
-import { logFlashFallback, FlashFallbackEvent } from '../telemetry/index.js';
+import type { Config } from "../config/config.js";
+import { AuthType } from "../core/contentGenerator.js";
+import { DEFAULT_KAIDEX_FLASH_MODEL } from "../config/models.js";
+import { logFlashFallback, FlashFallbackEvent } from "../telemetry/index.js";
 
 export async function handleFallback(
   config: Config,
@@ -18,13 +18,13 @@ export async function handleFallback(
   // Applicability Checks
   if (authType !== AuthType.LOGIN_WITH_GOOGLE) return null;
 
-  const fallbackModel = DEFAULT_GEMINI_FLASH_MODEL;
+  const fallbackModel = DEFAULT_KAIDEX_FLASH_MODEL;
 
   if (failedModel === fallbackModel) return null;
 
   // Consult UI Handler for Intent
   const fallbackModelHandler = config.fallbackModelHandler;
-  if (typeof fallbackModelHandler !== 'function') return null;
+  if (typeof fallbackModelHandler !== "function") return null;
 
   try {
     // Pass the specific failed model to the UI handler.
@@ -36,16 +36,16 @@ export async function handleFallback(
 
     // Process Intent and Update State
     switch (intent) {
-      case 'retry':
+      case "retry":
         // Activate fallback mode. The NEXT retry attempt will pick this up.
         activateFallbackMode(config, authType);
         return true; // Signal retryWithBackoff to continue.
 
-      case 'stop':
+      case "stop":
         activateFallbackMode(config, authType);
         return false;
 
-      case 'auth':
+      case "auth":
         return false;
 
       default:
@@ -54,7 +54,7 @@ export async function handleFallback(
         );
     }
   } catch (handlerError) {
-    console.error('Fallback UI handler failed:', handlerError);
+    console.error("Fallback UI handler failed:", handlerError);
     return null;
   }
 }

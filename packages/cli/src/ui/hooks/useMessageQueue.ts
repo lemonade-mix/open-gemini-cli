@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useCallback, useEffect, useState } from 'react';
-import { StreamingState } from '../types.js';
+import { useCallback, useEffect, useState } from "react";
+import { StreamingState } from "../types.js";
 
 export interface UseMessageQueueOptions {
   isConfigInitialized: boolean;
@@ -47,8 +47,8 @@ export function useMessageQueue({
 
   // Get all queued messages as a single text string
   const getQueuedMessagesText = useCallback(() => {
-    if (messageQueue.length === 0) return '';
-    return messageQueue.join('\n\n');
+    if (messageQueue.length === 0) return "";
+    return messageQueue.join("\n\n");
   }, [messageQueue]);
 
   // Process queued messages when streaming becomes idle
@@ -59,7 +59,7 @@ export function useMessageQueue({
       messageQueue.length > 0
     ) {
       // Combine all messages with double newlines for clarity
-      const combinedMessage = messageQueue.join('\n\n');
+      const combinedMessage = messageQueue.join("\n\n");
       // Clear the queue and submit
       setMessageQueue([]);
       submitQuery(combinedMessage);

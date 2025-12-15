@@ -4,22 +4,23 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ThoughtSummary } from '@google/gemini-cli-core';
-import type React from 'react';
-import { Box, Text } from 'ink';
-import { theme } from '../semantic-colors.js';
-import { useStreamingContext } from '../contexts/StreamingContext.js';
-import { StreamingState } from '../types.js';
-import { GeminiRespondingSpinner } from './GeminiRespondingSpinner.js';
-import { formatDuration } from '../utils/formatters.js';
-import { useTerminalSize } from '../hooks/useTerminalSize.js';
-import { isNarrowWidth } from '../utils/isNarrowWidth.js';
+import type { ThoughtSummary } from "@google/kaidex-cli-core";
+import type React from "react";
+import { Box, Text } from "ink";
+import { Colors } from "../colors.js";
+import { useStreamingContext } from "../contexts/StreamingContext.js";
+import { StreamingState } from "../types.js";
+import { KaiDexRespondingSpinner } from "./KaiDexRespondingSpinner.js";
+import { useTerminalSize } from "../hooks/useTerminalSize.js";
+import { isNarrowWidth } from "../utils/isNarrowWidth.js";
 
 interface LoadingIndicatorProps {
   currentLoadingPhrase?: string;
   elapsedTime: number;
   rightContent?: React.ReactNode;
   thought?: ThoughtSummary | null;
+  streamingOutputTokens?: number; // Live token count during streaming
+  model?: string;
 }
 
 export const LoadingIndicator: React.FC<LoadingIndicatorProps> = ({
@@ -27,6 +28,7 @@ export const LoadingIndicator: React.FC<LoadingIndicatorProps> = ({
   elapsedTime,
   rightContent,
   thought,
+  streamingOutputTokens,
 }) => {
   const streamingState = useStreamingContext();
   const { columns: terminalWidth } = useTerminalSize();
@@ -38,9 +40,28 @@ export const LoadingIndicator: React.FC<LoadingIndicatorProps> = ({
 
   const primaryText = thought?.subject || currentLoadingPhrase;
 
+  // Format time as "5m 13s" or "42s"
+  const formatTime = (seconds: number) => {
+    if (seconds < 60) return `${seconds}s`;
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}m ${secs}s`;
+  };
+
+  // Format token usage (streaming output tokens - live count as LLM responds)
+  const tokenInfo = streamingOutputTokens
+    ? (() => {
+        const tokensFormatted =
+          streamingOutputTokens >= 1000
+            ? `${(streamingOutputTokens / 1000).toFixed(1)}k`
+            : streamingOutputTokens.toString();
+        return `↓ ${tokensFormatted} tokens`;
+      })()
+    : "";
+
   const cancelAndTimerContent =
     streamingState !== StreamingState.WaitingForConfirmation
-      ? `(esc to cancel, ${elapsedTime < 60 ? `${elapsedTime}s` : formatDuration(elapsedTime * 1000)})`
+      ? `(esc to interrupt · ctrl+t to show todos · ${formatTime(elapsedTime)}${tokenInfo ? ` · ${tokenInfo}` : ""})`
       : null;
 
   return (
@@ -48,26 +69,24 @@ export const LoadingIndicator: React.FC<LoadingIndicatorProps> = ({
       {/* Main loading line */}
       <Box
         width="100%"
-        flexDirection={isNarrow ? 'column' : 'row'}
-        alignItems={isNarrow ? 'flex-start' : 'center'}
+        flexDirection={isNarrow ? "column" : "row"}
+        alignItems={isNarrow ? "flex-start" : "center"}
       >
         <Box>
           <Box marginRight={1}>
-            <GeminiRespondingSpinner
+            <KaiDexRespondingSpinner
               nonRespondingDisplay={
                 streamingState === StreamingState.WaitingForConfirmation
-                  ? '⠏'
-                  : ''
+                  ? "⠏"
+                  : ""
               }
             />
           </Box>
           {primaryText && (
-            <Text color={theme.text.accent} wrap="truncate-end">
-              {primaryText}
-            </Text>
+            <Text color={Colors.AccentPurple}>{primaryText}</Text>
           )}
           {!isNarrow && cancelAndTimerContent && (
-            <Text color={theme.text.secondary}> {cancelAndTimerContent}</Text>
+            <Text color={Colors.Gray}> {cancelAndTimerContent}</Text>
           )}
         </Box>
         {!isNarrow && <Box flexGrow={1}>{/* Spacer */}</Box>}
@@ -75,7 +94,7 @@ export const LoadingIndicator: React.FC<LoadingIndicatorProps> = ({
       </Box>
       {isNarrow && cancelAndTimerContent && (
         <Box>
-          <Text color={theme.text.secondary}>{cancelAndTimerContent}</Text>
+          <Text color={Colors.Gray}>{cancelAndTimerContent}</Text>
         </Box>
       )}
       {isNarrow && rightContent && <Box>{rightContent}</Box>}

@@ -7,14 +7,14 @@
 import {
   CompressionStatus,
   type ChatCompressionInfo,
-  type GeminiClient,
-} from '@google/gemini-cli-core';
-import { vi, describe, it, expect, beforeEach } from 'vitest';
-import { compressCommand } from './compressCommand.js';
-import { createMockCommandContext } from '../../test-utils/mockCommandContext.js';
-import { MessageType } from '../types.js';
+  type KaiDexClient,
+} from "@google/kaidex-cli-core";
+import { vi, describe, it, expect, beforeEach } from "vitest";
+import { compressCommand } from "./compressCommand.js";
+import { createMockCommandContext } from "../../test-utils/mockCommandContext.js";
+import { MessageType } from "../types.js";
 
-describe('compressCommand', () => {
+describe("compressCommand", () => {
   let context: ReturnType<typeof createMockCommandContext>;
   let mockTryCompressChat: ReturnType<typeof vi.fn>;
 
@@ -23,16 +23,16 @@ describe('compressCommand', () => {
     context = createMockCommandContext({
       services: {
         config: {
-          getGeminiClient: () =>
+          getKaiDexClient: () =>
             ({
               tryCompressChat: mockTryCompressChat,
-            }) as unknown as GeminiClient,
+            }) as unknown as KaiDexClient,
         },
       },
     });
   });
 
-  it('should do nothing if a compression is already pending', async () => {
+  it("should do nothing if a compression is already pending", async () => {
     context.ui.pendingItem = {
       type: MessageType.COMPRESSION,
       compression: {
@@ -42,11 +42,11 @@ describe('compressCommand', () => {
         compressionStatus: null,
       },
     };
-    await compressCommand.action!(context, '');
+    await compressCommand.action!(context, "");
     expect(context.ui.addItem).toHaveBeenCalledWith(
       expect.objectContaining({
         type: MessageType.ERROR,
-        text: 'Already compressing, wait for previous request to complete',
+        text: "Already compressing, wait for previous request to complete",
       }),
       expect.any(Number),
     );
@@ -54,7 +54,7 @@ describe('compressCommand', () => {
     expect(mockTryCompressChat).not.toHaveBeenCalled();
   });
 
-  it('should set pending item, call tryCompressChat, and add result on success', async () => {
+  it("should set pending item, call tryCompressChat, and add result on success", async () => {
     const compressedResult: ChatCompressionInfo = {
       originalTokenCount: 200,
       compressionStatus: CompressionStatus.COMPRESSED,
@@ -62,7 +62,7 @@ describe('compressCommand', () => {
     };
     mockTryCompressChat.mockResolvedValue(compressedResult);
 
-    await compressCommand.action!(context, '');
+    await compressCommand.action!(context, "");
 
     expect(context.ui.setPendingItem).toHaveBeenNthCalledWith(1, {
       type: MessageType.COMPRESSION,
@@ -95,26 +95,26 @@ describe('compressCommand', () => {
     expect(context.ui.setPendingItem).toHaveBeenNthCalledWith(2, null);
   });
 
-  it('should add an error message if tryCompressChat returns falsy', async () => {
+  it("should add an error message if tryCompressChat returns falsy", async () => {
     mockTryCompressChat.mockResolvedValue(null);
 
-    await compressCommand.action!(context, '');
+    await compressCommand.action!(context, "");
 
     expect(context.ui.addItem).toHaveBeenCalledWith(
       expect.objectContaining({
         type: MessageType.ERROR,
-        text: 'Failed to compress chat history.',
+        text: "Failed to compress chat history.",
       }),
       expect.any(Number),
     );
     expect(context.ui.setPendingItem).toHaveBeenCalledWith(null);
   });
 
-  it('should add an error message if tryCompressChat throws', async () => {
-    const error = new Error('Compression failed');
+  it("should add an error message if tryCompressChat throws", async () => {
+    const error = new Error("Compression failed");
     mockTryCompressChat.mockRejectedValue(error);
 
-    await compressCommand.action!(context, '');
+    await compressCommand.action!(context, "");
 
     expect(context.ui.addItem).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -126,9 +126,9 @@ describe('compressCommand', () => {
     expect(context.ui.setPendingItem).toHaveBeenCalledWith(null);
   });
 
-  it('should clear the pending item in a finally block', async () => {
-    mockTryCompressChat.mockRejectedValue(new Error('some error'));
-    await compressCommand.action!(context, '');
+  it("should clear the pending item in a finally block", async () => {
+    mockTryCompressChat.mockRejectedValue(new Error("some error"));
+    await compressCommand.action!(context, "");
     expect(context.ui.setPendingItem).toHaveBeenCalledWith(null);
   });
 });

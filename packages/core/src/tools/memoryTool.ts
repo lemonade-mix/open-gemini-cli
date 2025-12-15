@@ -4,40 +4,40 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ToolEditConfirmationDetails, ToolResult } from './tools.js';
+import type { ToolEditConfirmationDetails, ToolResult } from "./tools.js";
 import {
   BaseDeclarativeTool,
   BaseToolInvocation,
   Kind,
   ToolConfirmationOutcome,
-} from './tools.js';
-import type { FunctionDeclaration } from '@google/genai';
-import * as fs from 'node:fs/promises';
-import * as path from 'node:path';
-import { Storage } from '../config/storage.js';
-import * as Diff from 'diff';
-import { DEFAULT_DIFF_OPTIONS } from './diffOptions.js';
-import { tildeifyPath } from '../utils/paths.js';
+} from "./tools.js";
+import type { FunctionDeclaration } from "@google/genai";
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
+import { Storage } from "../config/storage.js";
+import * as Diff from "diff";
+import { DEFAULT_DIFF_OPTIONS } from "./diffOptions.js";
+import { tildeifyPath } from "../utils/paths.js";
 import type {
   ModifiableDeclarativeTool,
   ModifyContext,
-} from './modifiable-tool.js';
-import { ToolErrorType } from './tool-error.js';
+} from "./modifiable-tool.js";
+import { ToolErrorType } from "./tool-error.js";
 
 const memoryToolSchemaData: FunctionDeclaration = {
-  name: 'save_memory',
+  name: "save_memory",
   description:
-    'Saves a specific piece of information or fact to your long-term memory. Use this when the user explicitly asks you to remember something, or when they state a clear, concise fact that seems important to retain for future interactions.',
+    "Saves a specific piece of information or fact to your long-term memory. Use this when the user explicitly asks you to remember something, or when they state a clear, concise fact that seems important to retain for future interactions.",
   parametersJsonSchema: {
-    type: 'object',
+    type: "object",
     properties: {
       fact: {
-        type: 'string',
+        type: "string",
         description:
-          'The specific fact or piece of information to remember. Should be a clear, self-contained statement.',
+          "The specific fact or piece of information to remember. Should be a clear, self-contained statement.",
       },
     },
-    required: ['fact'],
+    required: ["fact"],
   },
 };
 
@@ -60,11 +60,11 @@ Do NOT use this tool:
 - \`fact\` (string, required): The specific fact or piece of information to remember. This should be a clear, self-contained statement. For example, if the user says "My favorite color is blue", the fact would be "My favorite color is blue".
 `;
 
-export const GEMINI_CONFIG_DIR = '.gemini';
-export const DEFAULT_CONTEXT_FILENAME = 'GEMINI.md';
-export const MEMORY_SECTION_HEADER = '## Gemini Added Memories';
+export const GEMINI_CONFIG_DIR = ".kaidex";
+export const DEFAULT_CONTEXT_FILENAME = "KAIDEX.md";
+export const MEMORY_SECTION_HEADER = "## KaiDex Added Memories";
 
-// This variable will hold the currently configured filename for GEMINI.md context files.
+// This variable will hold the currently configured filename for KAIDEX.md context files.
 // It defaults to DEFAULT_CONTEXT_FILENAME but can be overridden by setGeminiMdFilename.
 let currentGeminiMdFilename: string | string[] = DEFAULT_CONTEXT_FILENAME;
 
@@ -73,7 +73,7 @@ export function setGeminiMdFilename(newFilename: string | string[]): void {
     if (newFilename.length > 0) {
       currentGeminiMdFilename = newFilename.map((name) => name.trim());
     }
-  } else if (newFilename && newFilename.trim() !== '') {
+  } else if (newFilename && newFilename.trim() !== "") {
     currentGeminiMdFilename = newFilename.trim();
   }
 }
@@ -106,12 +106,12 @@ function getGlobalMemoryFilePath(): string {
  * Ensures proper newline separation before appending content.
  */
 function ensureNewlineSeparation(currentContent: string): string {
-  if (currentContent.length === 0) return '';
-  if (currentContent.endsWith('\n\n') || currentContent.endsWith('\r\n\r\n'))
-    return '';
-  if (currentContent.endsWith('\n') || currentContent.endsWith('\r\n'))
-    return '\n';
-  return '\n\n';
+  if (currentContent.length === 0) return "";
+  if (currentContent.endsWith("\n\n") || currentContent.endsWith("\r\n\r\n"))
+    return "";
+  if (currentContent.endsWith("\n") || currentContent.endsWith("\r\n"))
+    return "\n";
+  return "\n\n";
 }
 
 /**
@@ -119,11 +119,11 @@ function ensureNewlineSeparation(currentContent: string): string {
  */
 async function readMemoryFileContent(): Promise<string> {
   try {
-    return await fs.readFile(getGlobalMemoryFilePath(), 'utf-8');
+    return await fs.readFile(getGlobalMemoryFilePath(), "utf-8");
   } catch (err) {
     const error = err as Error & { code?: string };
-    if (!(error instanceof Error) || error.code !== 'ENOENT') throw err;
-    return '';
+    if (!(error instanceof Error) || error.code !== "ENOENT") throw err;
+    return "";
   }
 }
 
@@ -132,7 +132,7 @@ async function readMemoryFileContent(): Promise<string> {
  */
 function computeNewContent(currentContent: string, fact: string): string {
   let processedText = fact.trim();
-  processedText = processedText.replace(/^(-+\s*)+/, '').trim();
+  processedText = processedText.replace(/^(-+\s*)+/, "").trim();
   const newMemoryItem = `- ${processedText}`;
 
   const headerIndex = currentContent.indexOf(MEMORY_SECTION_HEADER);
@@ -148,7 +148,7 @@ function computeNewContent(currentContent: string, fact: string): string {
     // Header found, find where to insert the new memory entry
     const startOfSectionContent = headerIndex + MEMORY_SECTION_HEADER.length;
     let endOfSectionIndex = currentContent.indexOf(
-      '\n## ',
+      "\n## ",
       startOfSectionContent,
     );
     if (endOfSectionIndex === -1) {
@@ -166,7 +166,7 @@ function computeNewContent(currentContent: string, fact: string): string {
     sectionContent += `\n${newMemoryItem}`;
     return (
       `${beforeSectionMarker}\n${sectionContent.trimStart()}\n${afterSectionMarker}`.trimEnd() +
-      '\n'
+      "\n"
     );
   }
 }
@@ -200,13 +200,13 @@ class MemoryToolInvocation extends BaseToolInvocation<
       fileName,
       currentContent,
       newContent,
-      'Current',
-      'Proposed',
+      "Current",
+      "Proposed",
       DEFAULT_DIFF_OPTIONS,
     );
 
     const confirmationDetails: ToolEditConfirmationDetails = {
-      type: 'edit',
+      type: "edit",
       title: `Confirm Memory Save: ${tildeifyPath(memoryFilePath)}`,
       fileName: memoryFilePath,
       filePath: memoryFilePath,
@@ -234,7 +234,7 @@ class MemoryToolInvocation extends BaseToolInvocation<
         await fs.writeFile(
           getGlobalMemoryFilePath(),
           modified_content,
-          'utf-8',
+          "utf-8",
         );
         const successMessage = `Okay, I've updated the memory file with your modifications.`;
         return {
@@ -293,7 +293,7 @@ export class MemoryTool
   constructor() {
     super(
       MemoryTool.Name,
-      'Save Memory',
+      "Save Memory",
       memoryToolDescription,
       Kind.Think,
       memoryToolSchemaData.parametersJsonSchema as Record<string, unknown>,
@@ -303,7 +303,7 @@ export class MemoryTool
   protected override validateToolParamValues(
     params: SaveMemoryParams,
   ): string | null {
-    if (params.fact.trim() === '') {
+    if (params.fact.trim() === "") {
       return 'Parameter "fact" must be a non-empty string.';
     }
 
@@ -318,11 +318,11 @@ export class MemoryTool
     text: string,
     memoryFilePath: string,
     fsAdapter: {
-      readFile: (path: string, encoding: 'utf-8') => Promise<string>;
+      readFile: (path: string, encoding: "utf-8") => Promise<string>;
       writeFile: (
         path: string,
         data: string,
-        encoding: 'utf-8',
+        encoding: "utf-8",
       ) => Promise<void>;
       mkdir: (
         path: string,
@@ -332,16 +332,16 @@ export class MemoryTool
   ): Promise<void> {
     try {
       await fsAdapter.mkdir(path.dirname(memoryFilePath), { recursive: true });
-      let currentContent = '';
+      let currentContent = "";
       try {
-        currentContent = await fsAdapter.readFile(memoryFilePath, 'utf-8');
+        currentContent = await fsAdapter.readFile(memoryFilePath, "utf-8");
       } catch (_e) {
         // File doesn't exist, which is fine. currentContent will be empty.
       }
 
       const newContent = computeNewContent(currentContent, text);
 
-      await fsAdapter.writeFile(memoryFilePath, newContent, 'utf-8');
+      await fsAdapter.writeFile(memoryFilePath, newContent, "utf-8");
     } catch (error) {
       console.error(
         `[MemoryTool] Error adding memory entry to ${memoryFilePath}:`,

@@ -4,25 +4,29 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import * as fs from 'node:fs/promises';
-import * as path from 'node:path';
-import { spawnAsync } from '@google/gemini-cli-core';
+import { exec } from "node:child_process";
+import { promisify } from "node:util";
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
+
+const execAsync = promisify(exec);
 
 /**
  * Checks if the system clipboard contains an image (macOS only for now)
  * @returns true if clipboard contains an image
  */
 export async function clipboardHasImage(): Promise<boolean> {
-  if (process.platform !== 'darwin') {
+  if (process.platform !== "darwin") {
     return false;
   }
 
   try {
     // Use osascript to check clipboard type
-    const { stdout } = await spawnAsync('osascript', ['-e', 'clipboard info']);
-    const imageRegex =
-      /«class PNGf»|TIFF picture|JPEG picture|GIF picture|«class JPEG»|«class TIFF»/;
-    return imageRegex.test(stdout);
+    const { stdout } = await execAsync(
+      `osascript -e 'clipboard info' 2>/dev/null | grep -qE "«class PNGf»|TIFF picture|JPEG picture|GIF picture|«class JPEG»|«class TIFF»" && echo "true" || echo "false"`,
+      { shell: "/bin/bash" },
+    );
+    return stdout.trim() === "true";
   } catch {
     return false;
   }
@@ -36,7 +40,7 @@ export async function clipboardHasImage(): Promise<boolean> {
 export async function saveClipboardImage(
   targetDir?: string,
 ): Promise<string | null> {
-  if (process.platform !== 'darwin') {
+  if (process.platform !== "darwin") {
     return null;
   }
 
@@ -44,7 +48,7 @@ export async function saveClipboardImage(
     // Create a temporary directory for clipboard images within the target directory
     // This avoids security restrictions on paths outside the target directory
     const baseDir = targetDir || process.cwd();
-    const tempDir = path.join(baseDir, '.gemini-clipboard');
+    const tempDir = path.join(baseDir, ".kaidex-clipboard");
     await fs.mkdir(tempDir, { recursive: true });
 
     // Generate a unique filename with timestamp
@@ -52,10 +56,10 @@ export async function saveClipboardImage(
 
     // Try different image formats in order of preference
     const formats = [
-      { class: 'PNGf', extension: 'png' },
-      { class: 'JPEG', extension: 'jpg' },
-      { class: 'TIFF', extension: 'tiff' },
-      { class: 'GIFf', extension: 'gif' },
+      { class: "PNGf", extension: "png" },
+      { class: "JPEG", extension: "jpg" },
+      { class: "TIFF", extension: "tiff" },
+      { class: "GIFf", extension: "gif" },
     ];
 
     for (const format of formats) {
@@ -80,9 +84,9 @@ export async function saveClipboardImage(
         end try
       `;
 
-      const { stdout } = await spawnAsync('osascript', ['-e', script]);
+      const { stdout } = await execAsync(`osascript -e '${script}'`);
 
-      if (stdout.trim() === 'success') {
+      if (stdout.trim() === "success") {
         // Verify the file was created and has content
         try {
           const stats = await fs.stat(tempFilePath);
@@ -105,7 +109,7 @@ export async function saveClipboardImage(
     // No format worked
     return null;
   } catch (error) {
-    console.error('Error saving clipboard image:', error);
+    console.error("Error saving clipboard image:", error);
     return null;
   }
 }
@@ -120,17 +124,17 @@ export async function cleanupOldClipboardImages(
 ): Promise<void> {
   try {
     const baseDir = targetDir || process.cwd();
-    const tempDir = path.join(baseDir, '.gemini-clipboard');
+    const tempDir = path.join(baseDir, ".kaidex-clipboard");
     const files = await fs.readdir(tempDir);
     const oneHourAgo = Date.now() - 60 * 60 * 1000;
 
     for (const file of files) {
       if (
-        file.startsWith('clipboard-') &&
-        (file.endsWith('.png') ||
-          file.endsWith('.jpg') ||
-          file.endsWith('.tiff') ||
-          file.endsWith('.gif'))
+        file.startsWith("clipboard-") &&
+        (file.endsWith(".png") ||
+          file.endsWith(".jpg") ||
+          file.endsWith(".tiff") ||
+          file.endsWith(".gif"))
       ) {
         const filePath = path.join(tempDir, file);
         const stats = await fs.stat(filePath);

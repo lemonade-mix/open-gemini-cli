@@ -1,0 +1,198 @@
+{
+  "providers": {
+    "local-mlx": {
+      "name": "Local MLX Server",
+      "baseURL": "${KAIDEX_SERVER_URL}",
+      "endpoint": "/chat/completions",
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer local-llm"
+      },
+      "format": "openai",
+      "streaming": true,
+      "maxInputTokens": 1000000,
+      "maxOutputTokens": 128000
+    },
+    "llamacpp": {
+      "name": "llama.cpp Server",
+      "baseURL": "${LLAMACPP_SERVER_URL}",
+      "endpoint": "/v1/chat/completions",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "format": "openai",
+      "streaming": true
+    },
+    "vllm": {
+      "name": "vLLM Server",
+      "baseURL": "${VLLM_SERVER_URL}",
+      "endpoint": "/v1/chat/completions",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "format": "openai",
+      "streaming": true
+    },
+    "gpt-5": {
+      "name": "GPT-5 ($1.25/$0.13/$10 | 400k ctx, 128k max)",
+      "baseURL": "https://api.openai.com/v1",
+      "endpoint": "/chat/completions",
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer ${OPENAI_API_KEY}"
+      },
+      "format": "openai",
+      "streaming": true,
+      "defaultModel": "gpt-5",
+      "maxInputTokens": 400000,
+      "maxOutputTokens": 128000
+    },
+    "gpt-5.2": {
+      "name": "GPT-5.2 (400k ctx, 128k max)",
+      "baseURL": "https://api.openai.com/v1",
+      "endpoint": "/chat/completions",
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer ${OPENAI_API_KEY}"
+      },
+      "format": "openai",
+      "streaming": true,
+      "defaultModel": "gpt-5.2",
+      "maxInputTokens": 400000,
+      "maxOutputTokens": 128000
+    },
+    "gpt-5.1-codex": {
+      "name": "GPT-5.1-CODEX (400k ctx, 128k max)",
+      "baseURL": "https://api.openai.com/v1",
+      "endpoint": "/responses",
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer ${OPENAI_API_KEY}"
+      },
+      "format": "openai",
+      "streaming": true,
+      "defaultModel": "gpt-5.1-codex",
+      "maxInputTokens": 400000,
+      "maxOutputTokens": 128000
+    },
+    "gpt-5.1-codex-max": {
+      "name": "GPT-5.1-CODEX-MAX (400k ctx, 128k max)",
+      "baseURL": "https://api.openai.com/v1",
+      "endpoint": "/responses",
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer ${OPENAI_API_KEY}"
+      },
+      "format": "openai",
+      "streaming": true,
+      "defaultModel": "gpt-5.1-codex-max",
+      "maxInputTokens": 400000,
+      "maxOutputTokens": 128000
+    },
+    "gpt-5-mini": {
+      "name": "GPT-5 Mini ($0.25/$0.03/$2 | 400k ctx, 128k max)",
+      "baseURL": "https://api.openai.com/v1",
+      "endpoint": "/chat/completions",
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer ${OPENAI_API_KEY}"
+      },
+      "format": "openai",
+      "streaming": true,
+      "defaultModel": "gpt-5-mini",
+      "maxInputTokens": 400000,
+      "maxOutputTokens": 128000
+    },
+    "gpt-4.1-mini": {
+      "name": "GPT-4.1 Mini ($0.40/$0.10/$1.60 | 1M ctx, 32k max)",
+      "baseURL": "https://api.openai.com/v1",
+      "endpoint": "/chat/completions",
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer ${OPENAI_API_KEY}"
+      },
+      "format": "openai",
+      "streaming": true,
+      "defaultModel": "gpt-4.1-mini",
+      "maxInputTokens": 1000000,
+      "maxOutputTokens": 32000
+    },
+    "codex-mini-latest": {
+      "name": "Codex Mini ($1.50/$0.38/$6 | 200k ctx, 100k max)",
+      "baseURL": "https://api.openai.com/v1",
+      "endpoint": "/chat/completions",
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer ${OPENAI_API_KEY}"
+      },
+      "format": "openai",
+      "streaming": true,
+      "defaultModel": "codex-mini-latest",
+      "maxInputTokens": 200000,
+      "maxOutputTokens": 100000
+    },
+    "claude-opus": {
+      "name": "Claude 3 Opus",
+      "baseURL": "https://api.anthropic.com/v1",
+      "endpoint": "/messages",
+      "headers": {
+        "Content-Type": "application/json",
+        "x-api-key": "${ANTHROPIC_API_KEY}",
+        "anthropic-version": "2023-06-01"
+      },
+      "format": "claude",
+      "streaming": true,
+      "defaultModel": "claude-3-opus-20240229"
+    },
+    "claude-sonnet": {
+      "name": "Claude 3.5 Sonnet",
+      "baseURL": "https://api.anthropic.com/v1",
+      "endpoint": "/messages",
+      "headers": {
+        "Content-Type": "application/json",
+        "x-api-key": "${ANTHROPIC_API_KEY}",
+        "anthropic-version": "2023-06-01"
+      },
+      "format": "claude",
+      "streaming": true,
+      "defaultModel": "claude-3-5-sonnet-20241022"
+    },
+    "claude-haiku": {
+      "name": "Claude 3 Haiku",
+      "baseURL": "https://api.anthropic.com/v1",
+      "endpoint": "/messages",
+      "headers": {
+        "Content-Type": "application/json",
+        "x-api-key": "${ANTHROPIC_API_KEY}",
+        "anthropic-version": "2023-06-01"
+      },
+      "format": "claude",
+      "streaming": true,
+      "defaultModel": "claude-3-haiku-20240307"
+    },
+    "gemini-flash": {
+      "name": "Google Gemini 2.5 Flash (API Key)",
+      "baseURL": "https://generativelanguage.googleapis.com/v1beta/openai",
+      "endpoint": "/chat/completions",
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer ${GEMINI_API_KEY}"
+      },
+      "format": "openai",
+      "streaming": true,
+      "defaultModel": "gemini-2.5-flash"
+    },
+    "gemini-3-pro": {
+      "name": "Google Gemini 3 Pro Preview (API Key)",
+      "baseURL": "https://generativelanguage.googleapis.com/v1beta/openai",
+      "endpoint": "/chat/completions",
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer ${GEMINI_API_KEY}"
+      },
+      "format": "openai",
+      "streaming": true,
+      "defaultModel": "gemini-3-pro-preview"
+    }
+  }
+}

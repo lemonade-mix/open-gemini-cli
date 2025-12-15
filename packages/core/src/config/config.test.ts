@@ -4,35 +4,35 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { Mock } from 'vitest';
-import type { ConfigParameters, SandboxConfig } from './config.js';
-import { Config, ApprovalMode } from './config.js';
-import * as path from 'node:path';
-import { setGeminiMdFilename as mockSetGeminiMdFilename } from '../tools/memoryTool.js';
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import type { Mock } from "vitest";
+import type { ConfigParameters, SandboxConfig } from "./config.js";
+import { Config, ApprovalMode } from "./config.js";
+import * as path from "node:path";
+import { setGeminiMdFilename as mockSetGeminiMdFilename } from "../tools/memoryTool.js";
 import {
   DEFAULT_TELEMETRY_TARGET,
   DEFAULT_OTLP_ENDPOINT,
-} from '../telemetry/index.js';
-import type { ContentGeneratorConfig } from '../core/contentGenerator.js';
+} from "../telemetry/index.js";
+import type { ContentGeneratorConfig } from "../core/contentGenerator.js";
 import {
   AuthType,
   createContentGeneratorConfig,
-} from '../core/contentGenerator.js';
-import { GeminiClient } from '../core/client.js';
-import { GitService } from '../services/gitService.js';
-import { ClearcutLogger } from '../telemetry/clearcut-logger/clearcut-logger.js';
+} from "../core/contentGenerator.js";
+import { KaiDexClient } from "../core/client.js";
+import { GitService } from "../services/gitService.js";
+import { ClearcutLogger } from "../telemetry/clearcut-logger/clearcut-logger.js";
 
-import { ShellTool } from '../tools/shell.js';
-import { ReadFileTool } from '../tools/read-file.js';
-import { GrepTool } from '../tools/grep.js';
-import { RipGrepTool, canUseRipgrep } from '../tools/ripGrep.js';
-import { logRipgrepFallback } from '../telemetry/loggers.js';
-import { RipgrepFallbackEvent } from '../telemetry/types.js';
-import { ToolRegistry } from '../tools/tool-registry.js';
+import { ShellTool } from "../tools/shell.js";
+import { ReadFileTool } from "../tools/read-file.js";
+import { GrepTool } from "../tools/grep.js";
+import { RipGrepTool, canUseRipgrep } from "../tools/ripGrep.js";
+import { logRipgrepFallback } from "../telemetry/loggers.js";
+import { RipgrepFallbackEvent } from "../telemetry/types.js";
+import { ToolRegistry } from "../tools/tool-registry.js";
 
-vi.mock('fs', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('fs')>();
+vi.mock("fs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("fs")>();
   return {
     ...actual,
     existsSync: vi.fn().mockReturnValue(true),
@@ -44,7 +44,7 @@ vi.mock('fs', async (importOriginal) => {
 });
 
 // Mock dependencies that might be called during Config construction or createServerConfig
-vi.mock('../tools/tool-registry', () => {
+vi.mock("../tools/tool-registry", () => {
   const ToolRegistryMock = vi.fn();
   ToolRegistryMock.prototype.registerTool = vi.fn();
   ToolRegistryMock.prototype.discoverAllTools = vi.fn();
@@ -54,68 +54,65 @@ vi.mock('../tools/tool-registry', () => {
   return { ToolRegistry: ToolRegistryMock };
 });
 
-vi.mock('../utils/memoryDiscovery.js', () => ({
+vi.mock("../utils/memoryDiscovery.js", () => ({
   loadServerHierarchicalMemory: vi.fn(),
 }));
 
 // Mock individual tools if their constructors are complex or have side effects
-vi.mock('../tools/ls');
-vi.mock('../tools/read-file');
-vi.mock('../tools/grep.js');
-vi.mock('../tools/ripGrep.js', () => ({
+vi.mock("../tools/ls");
+vi.mock("../tools/read-file");
+vi.mock("../tools/grep.js");
+vi.mock("../tools/ripGrep.js", () => ({
   canUseRipgrep: vi.fn(),
   RipGrepTool: class MockRipGrepTool {},
 }));
-vi.mock('../tools/glob');
-vi.mock('../tools/edit');
-vi.mock('../tools/shell');
-vi.mock('../tools/write-file');
-vi.mock('../tools/web-fetch');
-vi.mock('../tools/read-many-files');
-vi.mock('../tools/memoryTool', () => ({
+vi.mock("../tools/glob");
+vi.mock("../tools/edit");
+vi.mock("../tools/shell");
+vi.mock("../tools/write-file");
+vi.mock("../tools/web-fetch");
+vi.mock("../tools/read-many-files");
+vi.mock("../tools/memoryTool", () => ({
   MemoryTool: vi.fn(),
   setGeminiMdFilename: vi.fn(),
-  getCurrentGeminiMdFilename: vi.fn(() => 'GEMINI.md'), // Mock the original filename
-  DEFAULT_CONTEXT_FILENAME: 'GEMINI.md',
-  GEMINI_CONFIG_DIR: '.gemini',
+  getCurrentGeminiMdFilename: vi.fn(() => "KAIDEX.md"), // Mock the original filename
+  DEFAULT_CONTEXT_FILENAME: "KAIDEX.md",
+  GEMINI_CONFIG_DIR: ".kaidex",
 }));
 
-vi.mock('../core/contentGenerator.js');
+vi.mock("../core/contentGenerator.js");
 
-vi.mock('../core/client.js', () => ({
-  GeminiClient: vi.fn().mockImplementation(() => ({
+vi.mock("../core/client.js", () => ({
+  KaiDexClient: vi.fn().mockImplementation(() => ({
     initialize: vi.fn().mockResolvedValue(undefined),
     stripThoughtsFromHistory: vi.fn(),
   })),
 }));
 
-vi.mock('../telemetry/index.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../telemetry/index.js')>();
+vi.mock("../telemetry/index.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../telemetry/index.js")>();
   return {
     ...actual,
     initializeTelemetry: vi.fn(),
-    uiTelemetryService: {
-      getLastPromptTokenCount: vi.fn(),
-    },
   };
 });
 
-vi.mock('../telemetry/loggers.js', async (importOriginal) => {
+vi.mock("../telemetry/loggers.js", async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('../telemetry/loggers.js')>();
+    await importOriginal<typeof import("../telemetry/loggers.js")>();
   return {
     ...actual,
     logRipgrepFallback: vi.fn(),
   };
 });
 
-vi.mock('../services/gitService.js', () => {
+vi.mock("../services/gitService.js", () => {
   const GitServiceMock = vi.fn();
   GitServiceMock.prototype.initialize = vi.fn();
   return { GitService: GitServiceMock };
 });
 
-vi.mock('../ide/ide-client.js', () => ({
+vi.mock("../ide/ide-client.js", () => ({
   IdeClient: {
     getInstance: vi.fn().mockResolvedValue({
       getConnectionStatus: vi.fn(),
@@ -125,42 +122,22 @@ vi.mock('../ide/ide-client.js', () => ({
   },
 }));
 
-vi.mock('../agents/registry.js', () => {
-  const AgentRegistryMock = vi.fn();
-  AgentRegistryMock.prototype.initialize = vi.fn();
-  AgentRegistryMock.prototype.getAllDefinitions = vi.fn(() => []);
-  return { AgentRegistry: AgentRegistryMock };
-});
-
-vi.mock('../agents/subagent-tool-wrapper.js', () => ({
-  SubagentToolWrapper: vi.fn(),
-}));
-
-import { BaseLlmClient } from '../core/baseLlmClient.js';
-import { tokenLimit } from '../core/tokenLimits.js';
-import { uiTelemetryService } from '../telemetry/index.js';
-
-vi.mock('../core/baseLlmClient.js');
-vi.mock('../core/tokenLimits.js', () => ({
-  tokenLimit: vi.fn(),
-}));
-
-describe('Server Config (config.ts)', () => {
-  const MODEL = 'gemini-pro';
+describe("Server Config (config.ts)", () => {
+  const MODEL = "gemini-pro";
   const SANDBOX: SandboxConfig = {
-    command: 'docker',
-    image: 'gemini-cli-sandbox',
+    command: "docker",
+    image: "gemini-cli-sandbox",
   };
-  const TARGET_DIR = '/path/to/target';
+  const TARGET_DIR = "/path/to/target";
   const DEBUG_MODE = false;
-  const QUESTION = 'test question';
+  const QUESTION = "test question";
   const FULL_CONTEXT = false;
-  const USER_MEMORY = 'Test User Memory';
+  const USER_MEMORY = "Test User Memory";
   const TELEMETRY_SETTINGS = { enabled: false };
-  const EMBEDDING_MODEL = 'gemini-embedding';
-  const SESSION_ID = 'test-session-id';
+  const EMBEDDING_MODEL = "gemini-embedding";
+  const SESSION_ID = "test-session-id";
   const baseParams: ConfigParameters = {
-    cwd: '/tmp',
+    cwd: "/tmp",
     embeddingModel: EMBEDDING_MODEL,
     sandbox: SANDBOX,
     targetDir: TARGET_DIR,
@@ -179,13 +156,13 @@ describe('Server Config (config.ts)', () => {
     vi.clearAllMocks();
     vi.spyOn(
       ClearcutLogger.prototype,
-      'logStartSessionEvent',
+      "logStartSessionEvent",
     ).mockImplementation(() => undefined);
   });
 
-  describe('initialize', () => {
-    it('should throw an error if checkpointing is enabled and GitService fails', async () => {
-      const gitError = new Error('Git is not installed');
+  describe("initialize", () => {
+    it("should throw an error if checkpointing is enabled and GitService fails", async () => {
+      const gitError = new Error("Git is not installed");
       (GitService.prototype.initialize as Mock).mockRejectedValue(gitError);
 
       const config = new Config({
@@ -196,8 +173,8 @@ describe('Server Config (config.ts)', () => {
       await expect(config.initialize()).rejects.toThrow(gitError);
     });
 
-    it('should not throw an error if checkpointing is disabled and GitService fails', async () => {
-      const gitError = new Error('Git is not installed');
+    it("should not throw an error if checkpointing is disabled and GitService fails", async () => {
+      const gitError = new Error("Git is not installed");
       (GitService.prototype.initialize as Mock).mockRejectedValue(gitError);
 
       const config = new Config({
@@ -208,7 +185,7 @@ describe('Server Config (config.ts)', () => {
       await expect(config.initialize()).resolves.toBeUndefined();
     });
 
-    it('should throw an error if initialized more than once', async () => {
+    it("should throw an error if initialized more than once", async () => {
       const config = new Config({
         ...baseParams,
         checkpointing: false,
@@ -216,17 +193,19 @@ describe('Server Config (config.ts)', () => {
 
       await expect(config.initialize()).resolves.toBeUndefined();
       await expect(config.initialize()).rejects.toThrow(
-        'Config was already initialized',
+        "Config was already initialized",
       );
     });
   });
 
-  describe('refreshAuth', () => {
-    it('should refresh auth and update config', async () => {
+  describe("refreshAuth", () => {
+    it("should refresh auth and update config", async () => {
       const config = new Config(baseParams);
       const authType = AuthType.USE_GEMINI;
+      const newModel = "gemini-flash";
       const mockContentConfig = {
-        apiKey: 'test-key',
+        model: newModel,
+        apiKey: "test-key",
       };
 
       vi.mocked(createContentGeneratorConfig).mockReturnValue(
@@ -243,14 +222,16 @@ describe('Server Config (config.ts)', () => {
         config,
         authType,
       );
-      // Verify that contentGeneratorConfig is updated
+      // Verify that contentGeneratorConfig is updated with the new model
       expect(config.getContentGeneratorConfig()).toEqual(mockContentConfig);
-      expect(GeminiClient).toHaveBeenCalledWith(config);
+      expect(config.getContentGeneratorConfig().model).toBe(newModel);
+      expect(config.getModel()).toBe(newModel); // getModel() should return the updated model
+      expect(KaiDexClient).toHaveBeenCalledWith(config);
       // Verify that fallback mode is reset
       expect(config.isInFallbackMode()).toBe(false);
     });
 
-    it('should strip thoughts when switching from GenAI to Vertex', async () => {
+    it("should strip thoughts when switching from GenAI to Vertex", async () => {
       const config = new Config(baseParams);
 
       vi.mocked(createContentGeneratorConfig).mockImplementation(
@@ -263,11 +244,11 @@ describe('Server Config (config.ts)', () => {
       await config.refreshAuth(AuthType.LOGIN_WITH_GOOGLE);
 
       expect(
-        config.getGeminiClient().stripThoughtsFromHistory,
+        config.getKaiDexClient().stripThoughtsFromHistory,
       ).toHaveBeenCalledWith();
     });
 
-    it('should not strip thoughts when switching from Vertex to GenAI', async () => {
+    it("should not strip thoughts when switching from Vertex to GenAI", async () => {
       const config = new Config(baseParams);
 
       vi.mocked(createContentGeneratorConfig).mockImplementation(
@@ -280,12 +261,12 @@ describe('Server Config (config.ts)', () => {
       await config.refreshAuth(AuthType.USE_GEMINI);
 
       expect(
-        config.getGeminiClient().stripThoughtsFromHistory,
+        config.getKaiDexClient().stripThoughtsFromHistory,
       ).not.toHaveBeenCalledWith();
     });
   });
 
-  it('Config constructor should store userMemory correctly', () => {
+  it("Config constructor should store userMemory correctly", () => {
     const config = new Config(baseParams);
 
     expect(config.getUserMemory()).toBe(USER_MEMORY);
@@ -293,16 +274,16 @@ describe('Server Config (config.ts)', () => {
     expect(config.getTargetDir()).toBe(path.resolve(TARGET_DIR)); // Check resolved path
   });
 
-  it('Config constructor should default userMemory to empty string if not provided', () => {
+  it("Config constructor should default userMemory to empty string if not provided", () => {
     const paramsWithoutMemory: ConfigParameters = { ...baseParams };
     delete paramsWithoutMemory.userMemory;
     const config = new Config(paramsWithoutMemory);
 
-    expect(config.getUserMemory()).toBe('');
+    expect(config.getUserMemory()).toBe("");
   });
 
-  it('Config constructor should call setGeminiMdFilename with contextFileName if provided', () => {
-    const contextFileName = 'CUSTOM_AGENTS.md';
+  it("Config constructor should call setGeminiMdFilename with contextFileName if provided", () => {
+    const contextFileName = "CUSTOM_AGENTS.md";
     const paramsWithContextFile: ConfigParameters = {
       ...baseParams,
       contextFileName,
@@ -311,17 +292,17 @@ describe('Server Config (config.ts)', () => {
     expect(mockSetGeminiMdFilename).toHaveBeenCalledWith(contextFileName);
   });
 
-  it('Config constructor should not call setGeminiMdFilename if contextFileName is not provided', () => {
+  it("Config constructor should not call setGeminiMdFilename if contextFileName is not provided", () => {
     new Config(baseParams); // baseParams does not have contextFileName
     expect(mockSetGeminiMdFilename).not.toHaveBeenCalled();
   });
 
-  it('should set default file filtering settings when not provided', () => {
+  it("should set default file filtering settings when not provided", () => {
     const config = new Config(baseParams);
     expect(config.getFileFilteringRespectGitIgnore()).toBe(true);
   });
 
-  it('should set custom file filtering settings when provided', () => {
+  it("should set custom file filtering settings when provided", () => {
     const paramsWithFileFiltering: ConfigParameters = {
       ...baseParams,
       fileFiltering: {
@@ -332,8 +313,8 @@ describe('Server Config (config.ts)', () => {
     expect(config.getFileFilteringRespectGitIgnore()).toBe(false);
   });
 
-  it('should initialize WorkspaceContext with includeDirectories', () => {
-    const includeDirectories = ['/path/to/dir1', '/path/to/dir2'];
+  it("should initialize WorkspaceContext with includeDirectories", () => {
+    const includeDirectories = ["/path/to/dir1", "/path/to/dir2"];
     const paramsWithIncludeDirs: ConfigParameters = {
       ...baseParams,
       includeDirectories,
@@ -345,11 +326,11 @@ describe('Server Config (config.ts)', () => {
     // Should include the target directory plus the included directories
     expect(directories).toHaveLength(3);
     expect(directories).toContain(path.resolve(baseParams.targetDir));
-    expect(directories).toContain('/path/to/dir1');
-    expect(directories).toContain('/path/to/dir2');
+    expect(directories).toContain("/path/to/dir1");
+    expect(directories).toContain("/path/to/dir2");
   });
 
-  it('Config constructor should set telemetry to true when provided as true', () => {
+  it("Config constructor should set telemetry to true when provided as true", () => {
     const paramsWithTelemetry: ConfigParameters = {
       ...baseParams,
       telemetry: { enabled: true },
@@ -358,7 +339,7 @@ describe('Server Config (config.ts)', () => {
     expect(config.getTelemetryEnabled()).toBe(true);
   });
 
-  it('Config constructor should set telemetry to false when provided as false', () => {
+  it("Config constructor should set telemetry to false when provided as false", () => {
     const paramsWithTelemetry: ConfigParameters = {
       ...baseParams,
       telemetry: { enabled: false },
@@ -367,48 +348,21 @@ describe('Server Config (config.ts)', () => {
     expect(config.getTelemetryEnabled()).toBe(false);
   });
 
-  it('Config constructor should default telemetry to default value if not provided', () => {
+  it("Config constructor should default telemetry to default value if not provided", () => {
     const paramsWithoutTelemetry: ConfigParameters = { ...baseParams };
     delete paramsWithoutTelemetry.telemetry;
     const config = new Config(paramsWithoutTelemetry);
     expect(config.getTelemetryEnabled()).toBe(TELEMETRY_SETTINGS.enabled);
   });
 
-  it('Config constructor should set telemetry useCollector to true when provided', () => {
-    const paramsWithTelemetry: ConfigParameters = {
-      ...baseParams,
-      telemetry: { enabled: true, useCollector: true },
-    };
-    const config = new Config(paramsWithTelemetry);
-    expect(config.getTelemetryUseCollector()).toBe(true);
-  });
-
-  it('Config constructor should set telemetry useCollector to false when provided', () => {
-    const paramsWithTelemetry: ConfigParameters = {
-      ...baseParams,
-      telemetry: { enabled: true, useCollector: false },
-    };
-    const config = new Config(paramsWithTelemetry);
-    expect(config.getTelemetryUseCollector()).toBe(false);
-  });
-
-  it('Config constructor should default telemetry useCollector to false if not provided', () => {
-    const paramsWithTelemetry: ConfigParameters = {
-      ...baseParams,
-      telemetry: { enabled: true },
-    };
-    const config = new Config(paramsWithTelemetry);
-    expect(config.getTelemetryUseCollector()).toBe(false);
-  });
-
-  it('should have a getFileService method that returns FileDiscoveryService', () => {
+  it("should have a getFileService method that returns FileDiscoveryService", () => {
     const config = new Config(baseParams);
     const fileService = config.getFileService();
     expect(fileService).toBeDefined();
   });
 
-  describe('Usage Statistics', () => {
-    it('defaults usage statistics to enabled if not specified', () => {
+  describe("Usage Statistics", () => {
+    it("defaults usage statistics to enabled if not specified", () => {
       const config = new Config({
         ...baseParams,
         usageStatisticsEnabled: undefined,
@@ -418,7 +372,7 @@ describe('Server Config (config.ts)', () => {
     });
 
     it.each([{ enabled: true }, { enabled: false }])(
-      'sets usage statistics based on the provided value (enabled: $enabled)',
+      "sets usage statistics based on the provided value (enabled: $enabled)",
       ({ enabled }) => {
         const config = new Config({
           ...baseParams,
@@ -428,12 +382,12 @@ describe('Server Config (config.ts)', () => {
       },
     );
 
-    it('logs the session start event', async () => {
+    it("logs the session start event", async () => {
       const config = new Config({
         ...baseParams,
         usageStatisticsEnabled: true,
       });
-      await config.refreshAuth(AuthType.USE_GEMINI);
+      await config.initialize();
 
       expect(
         ClearcutLogger.prototype.logStartSessionEvent,
@@ -441,8 +395,8 @@ describe('Server Config (config.ts)', () => {
     });
   });
 
-  describe('Telemetry Settings', () => {
-    it('should return default telemetry target if not provided', () => {
+  describe("Telemetry Settings", () => {
+    it("should return default telemetry target if not provided", () => {
       const params: ConfigParameters = {
         ...baseParams,
         telemetry: { enabled: true },
@@ -451,8 +405,8 @@ describe('Server Config (config.ts)', () => {
       expect(config.getTelemetryTarget()).toBe(DEFAULT_TELEMETRY_TARGET);
     });
 
-    it('should return provided OTLP endpoint', () => {
-      const endpoint = 'http://custom.otel.collector:4317';
+    it("should return provided OTLP endpoint", () => {
+      const endpoint = "http://custom.otel.collector:4317";
       const params: ConfigParameters = {
         ...baseParams,
         telemetry: { enabled: true, otlpEndpoint: endpoint },
@@ -461,7 +415,7 @@ describe('Server Config (config.ts)', () => {
       expect(config.getTelemetryOtlpEndpoint()).toBe(endpoint);
     });
 
-    it('should return default OTLP endpoint if not provided', () => {
+    it("should return default OTLP endpoint if not provided", () => {
       const params: ConfigParameters = {
         ...baseParams,
         telemetry: { enabled: true },
@@ -470,7 +424,7 @@ describe('Server Config (config.ts)', () => {
       expect(config.getTelemetryOtlpEndpoint()).toBe(DEFAULT_OTLP_ENDPOINT);
     });
 
-    it('should return provided logPrompts setting', () => {
+    it("should return provided logPrompts setting", () => {
       const params: ConfigParameters = {
         ...baseParams,
         telemetry: { enabled: true, logPrompts: false },
@@ -479,7 +433,7 @@ describe('Server Config (config.ts)', () => {
       expect(config.getTelemetryLogPromptsEnabled()).toBe(false);
     });
 
-    it('should return default logPrompts setting (true) if not provided', () => {
+    it("should return default logPrompts setting (true) if not provided", () => {
       const params: ConfigParameters = {
         ...baseParams,
         telemetry: { enabled: true },
@@ -488,69 +442,60 @@ describe('Server Config (config.ts)', () => {
       expect(config.getTelemetryLogPromptsEnabled()).toBe(true);
     });
 
-    it('should return default logPrompts setting (true) if telemetry object is not provided', () => {
+    it("should return default logPrompts setting (true) if telemetry object is not provided", () => {
       const paramsWithoutTelemetry: ConfigParameters = { ...baseParams };
       delete paramsWithoutTelemetry.telemetry;
       const config = new Config(paramsWithoutTelemetry);
       expect(config.getTelemetryLogPromptsEnabled()).toBe(true);
     });
 
-    it('should return default telemetry target if telemetry object is not provided', () => {
+    it("should return default telemetry target if telemetry object is not provided", () => {
       const paramsWithoutTelemetry: ConfigParameters = { ...baseParams };
       delete paramsWithoutTelemetry.telemetry;
       const config = new Config(paramsWithoutTelemetry);
       expect(config.getTelemetryTarget()).toBe(DEFAULT_TELEMETRY_TARGET);
     });
 
-    it('should return default OTLP endpoint if telemetry object is not provided', () => {
+    it("should return default OTLP endpoint if telemetry object is not provided", () => {
       const paramsWithoutTelemetry: ConfigParameters = { ...baseParams };
       delete paramsWithoutTelemetry.telemetry;
       const config = new Config(paramsWithoutTelemetry);
       expect(config.getTelemetryOtlpEndpoint()).toBe(DEFAULT_OTLP_ENDPOINT);
     });
 
-    it('should return provided OTLP protocol', () => {
+    it("should return provided OTLP protocol", () => {
       const params: ConfigParameters = {
         ...baseParams,
-        telemetry: { enabled: true, otlpProtocol: 'http' },
+        telemetry: { enabled: true, otlpProtocol: "http" },
       };
       const config = new Config(params);
-      expect(config.getTelemetryOtlpProtocol()).toBe('http');
+      expect(config.getTelemetryOtlpProtocol()).toBe("http");
     });
 
-    it('should return default OTLP protocol if not provided', () => {
+    it("should return default OTLP protocol if not provided", () => {
       const params: ConfigParameters = {
         ...baseParams,
         telemetry: { enabled: true },
       };
       const config = new Config(params);
-      expect(config.getTelemetryOtlpProtocol()).toBe('grpc');
+      expect(config.getTelemetryOtlpProtocol()).toBe("grpc");
     });
 
-    it('should return default OTLP protocol if telemetry object is not provided', () => {
+    it("should return default OTLP protocol if telemetry object is not provided", () => {
       const paramsWithoutTelemetry: ConfigParameters = { ...baseParams };
       delete paramsWithoutTelemetry.telemetry;
       const config = new Config(paramsWithoutTelemetry);
-      expect(config.getTelemetryOtlpProtocol()).toBe('grpc');
+      expect(config.getTelemetryOtlpProtocol()).toBe("grpc");
     });
   });
 
-  describe('UseRipgrep Configuration', () => {
-    it('should default useRipgrep to true when not provided', () => {
+  describe("UseRipgrep Configuration", () => {
+    it("should default useRipgrep to false when not provided", () => {
       const config = new Config(baseParams);
-      expect(config.getUseRipgrep()).toBe(true);
-    });
-
-    it('should set useRipgrep to false when provided as false', () => {
-      const paramsWithRipgrep: ConfigParameters = {
-        ...baseParams,
-        useRipgrep: false,
-      };
-      const config = new Config(paramsWithRipgrep);
       expect(config.getUseRipgrep()).toBe(false);
     });
 
-    it('should set useRipgrep to true when explicitly provided as true', () => {
+    it("should set useRipgrep to true when provided as true", () => {
       const paramsWithRipgrep: ConfigParameters = {
         ...baseParams,
         useRipgrep: true,
@@ -559,103 +504,37 @@ describe('Server Config (config.ts)', () => {
       expect(config.getUseRipgrep()).toBe(true);
     });
 
-    it('should default useRipgrep to true when undefined', () => {
+    it("should set useRipgrep to false when explicitly provided as false", () => {
+      const paramsWithRipgrep: ConfigParameters = {
+        ...baseParams,
+        useRipgrep: false,
+      };
+      const config = new Config(paramsWithRipgrep);
+      expect(config.getUseRipgrep()).toBe(false);
+    });
+
+    it("should default useRipgrep to false when undefined", () => {
       const paramsWithUndefinedRipgrep: ConfigParameters = {
         ...baseParams,
         useRipgrep: undefined,
       };
       const config = new Config(paramsWithUndefinedRipgrep);
-      expect(config.getUseRipgrep()).toBe(true);
+      expect(config.getUseRipgrep()).toBe(false);
     });
   });
 
-  describe('UseModelRouter Configuration', () => {
-    it('should default useModelRouter to false when not provided', () => {
-      const config = new Config(baseParams);
-      expect(config.getUseModelRouter()).toBe(false);
-    });
-
-    it('should set useModelRouter to true when provided as true', () => {
-      const paramsWithModelRouter: ConfigParameters = {
-        ...baseParams,
-        useModelRouter: true,
-      };
-      const config = new Config(paramsWithModelRouter);
-      expect(config.getUseModelRouter()).toBe(true);
-    });
-
-    it('should set useModelRouter to false when explicitly provided as false', () => {
-      const paramsWithModelRouter: ConfigParameters = {
-        ...baseParams,
-        useModelRouter: false,
-      };
-      const config = new Config(paramsWithModelRouter);
-      expect(config.getUseModelRouter()).toBe(false);
-    });
-  });
-
-  describe('EnableSubagents Configuration', () => {
-    it('should default enableSubagents to false when not provided', () => {
-      const config = new Config(baseParams);
-      expect(config.getEnableSubagents()).toBe(false);
-    });
-
-    it('should set enableSubagents to true when provided as true', () => {
-      const paramsWithSubagents: ConfigParameters = {
-        ...baseParams,
-        enableSubagents: true,
-      };
-      const config = new Config(paramsWithSubagents);
-      expect(config.getEnableSubagents()).toBe(true);
-    });
-
-    it('should set enableSubagents to false when explicitly provided as false', () => {
-      const paramsWithSubagents: ConfigParameters = {
-        ...baseParams,
-        enableSubagents: false,
-      };
-      const config = new Config(paramsWithSubagents);
-      expect(config.getEnableSubagents()).toBe(false);
-    });
-  });
-
-  describe('ContinueOnFailedApiCall Configuration', () => {
-    it('should default continueOnFailedApiCall to false when not provided', () => {
-      const config = new Config(baseParams);
-      expect(config.getContinueOnFailedApiCall()).toBe(true);
-    });
-
-    it('should set continueOnFailedApiCall to true when provided as true', () => {
-      const paramsWithContinueOnFailedApiCall: ConfigParameters = {
-        ...baseParams,
-        continueOnFailedApiCall: true,
-      };
-      const config = new Config(paramsWithContinueOnFailedApiCall);
-      expect(config.getContinueOnFailedApiCall()).toBe(true);
-    });
-
-    it('should set continueOnFailedApiCall to false when explicitly provided as false', () => {
-      const paramsWithContinueOnFailedApiCall: ConfigParameters = {
-        ...baseParams,
-        continueOnFailedApiCall: false,
-      };
-      const config = new Config(paramsWithContinueOnFailedApiCall);
-      expect(config.getContinueOnFailedApiCall()).toBe(false);
-    });
-  });
-
-  describe('createToolRegistry', () => {
-    it('should register a tool if coreTools contains an argument-specific pattern', async () => {
+  describe("createToolRegistry", () => {
+    it("should register a tool if coreTools contains an argument-specific pattern", async () => {
       const params: ConfigParameters = {
         ...baseParams,
-        coreTools: ['ShellTool(git status)'],
+        coreTools: ["ShellTool(git status)"],
       };
       const config = new Config(params);
       await config.initialize();
 
       // The ToolRegistry class is mocked, so we can inspect its prototype's methods.
       const registerToolMock = (
-        (await vi.importMock('../tools/tool-registry')) as {
+        (await vi.importMock("../tools/tool-registry")) as {
           ToolRegistry: { prototype: { registerTool: Mock } };
         }
       ).ToolRegistry.prototype.registerTool;
@@ -673,85 +552,13 @@ describe('Server Config (config.ts)', () => {
       expect(wasReadFileToolRegistered).toBe(false);
     });
 
-    it('should register subagents as tools when enableSubagents is true', async () => {
-      const params: ConfigParameters = {
-        ...baseParams,
-        enableSubagents: true,
-      };
-      const config = new Config(params);
-
-      const mockAgentDefinitions = [
-        { name: 'agent1', description: 'Agent 1', instructions: 'Inst 1' },
-        { name: 'agent2', description: 'Agent 2', instructions: 'Inst 2' },
-      ];
-
-      const AgentRegistryMock = (
-        (await vi.importMock('../agents/registry.js')) as {
-          AgentRegistry: Mock;
-        }
-      ).AgentRegistry;
-      AgentRegistryMock.prototype.getAllDefinitions.mockReturnValue(
-        mockAgentDefinitions,
-      );
-
-      const SubagentToolWrapperMock = (
-        (await vi.importMock('../agents/subagent-tool-wrapper.js')) as {
-          SubagentToolWrapper: Mock;
-        }
-      ).SubagentToolWrapper;
-
-      await config.initialize();
-
-      const registerToolMock = (
-        (await vi.importMock('../tools/tool-registry')) as {
-          ToolRegistry: { prototype: { registerTool: Mock } };
-        }
-      ).ToolRegistry.prototype.registerTool;
-
-      expect(SubagentToolWrapperMock).toHaveBeenCalledTimes(2);
-      expect(SubagentToolWrapperMock).toHaveBeenCalledWith(
-        mockAgentDefinitions[0],
-        config,
-        undefined,
-      );
-      expect(SubagentToolWrapperMock).toHaveBeenCalledWith(
-        mockAgentDefinitions[1],
-        config,
-        undefined,
-      );
-
-      const calls = registerToolMock.mock.calls;
-      const registeredWrappers = calls.filter(
-        (call) => call[0] instanceof SubagentToolWrapperMock,
-      );
-      expect(registeredWrappers).toHaveLength(2);
-    });
-
-    it('should not register subagents as tools when enableSubagents is false', async () => {
-      const params: ConfigParameters = {
-        ...baseParams,
-        enableSubagents: false,
-      };
-      const config = new Config(params);
-
-      const SubagentToolWrapperMock = (
-        (await vi.importMock('../agents/subagent-tool-wrapper.js')) as {
-          SubagentToolWrapper: Mock;
-        }
-      ).SubagentToolWrapper;
-
-      await config.initialize();
-
-      expect(SubagentToolWrapperMock).not.toHaveBeenCalled();
-    });
-
-    describe('with minified tool class names', () => {
+    describe("with minified tool class names", () => {
       beforeEach(() => {
         Object.defineProperty(
           vi.mocked(ShellTool).prototype.constructor,
-          'name',
+          "name",
           {
-            value: '_ShellTool',
+            value: "_ShellTool",
             configurable: true,
           },
         );
@@ -760,23 +567,23 @@ describe('Server Config (config.ts)', () => {
       afterEach(() => {
         Object.defineProperty(
           vi.mocked(ShellTool).prototype.constructor,
-          'name',
+          "name",
           {
-            value: 'ShellTool',
+            value: "ShellTool",
           },
         );
       });
 
-      it('should register a tool if coreTools contains the non-minified class name', async () => {
+      it("should register a tool if coreTools contains the non-minified class name", async () => {
         const params: ConfigParameters = {
           ...baseParams,
-          coreTools: ['ShellTool'],
+          coreTools: ["ShellTool"],
         };
         const config = new Config(params);
         await config.initialize();
 
         const registerToolMock = (
-          (await vi.importMock('../tools/tool-registry')) as {
+          (await vi.importMock("../tools/tool-registry")) as {
             ToolRegistry: { prototype: { registerTool: Mock } };
           }
         ).ToolRegistry.prototype.registerTool;
@@ -787,17 +594,17 @@ describe('Server Config (config.ts)', () => {
         expect(wasShellToolRegistered).toBe(true);
       });
 
-      it('should not register a tool if excludeTools contains the non-minified class name', async () => {
+      it("should not register a tool if excludeTools contains the non-minified class name", async () => {
         const params: ConfigParameters = {
           ...baseParams,
           coreTools: undefined, // all tools enabled by default
-          excludeTools: ['ShellTool'],
+          excludeTools: ["ShellTool"],
         };
         const config = new Config(params);
         await config.initialize();
 
         const registerToolMock = (
-          (await vi.importMock('../tools/tool-registry')) as {
+          (await vi.importMock("../tools/tool-registry")) as {
             ToolRegistry: { prototype: { registerTool: Mock } };
           }
         ).ToolRegistry.prototype.registerTool;
@@ -808,16 +615,16 @@ describe('Server Config (config.ts)', () => {
         expect(wasShellToolRegistered).toBe(false);
       });
 
-      it('should register a tool if coreTools contains an argument-specific pattern with the non-minified class name', async () => {
+      it("should register a tool if coreTools contains an argument-specific pattern with the non-minified class name", async () => {
         const params: ConfigParameters = {
           ...baseParams,
-          coreTools: ['ShellTool(git status)'],
+          coreTools: ["ShellTool(git status)"],
         };
         const config = new Config(params);
         await config.initialize();
 
         const registerToolMock = (
-          (await vi.importMock('../tools/tool-registry')) as {
+          (await vi.importMock("../tools/tool-registry")) as {
             ToolRegistry: { prototype: { registerTool: Mock } };
           }
         ).ToolRegistry.prototype.registerTool;
@@ -829,112 +636,61 @@ describe('Server Config (config.ts)', () => {
       });
     });
   });
-
-  describe('getTruncateToolOutputThreshold', () => {
-    beforeEach(() => {
-      vi.clearAllMocks();
-    });
-
-    it('should return the calculated threshold when it is smaller than the default', () => {
-      const config = new Config(baseParams);
-      vi.mocked(tokenLimit).mockReturnValue(32000);
-      vi.mocked(uiTelemetryService.getLastPromptTokenCount).mockReturnValue(
-        1000,
-      );
-      // 4 * (32000 - 1000) = 4 * 31000 = 124000
-      // default is 4_000_000
-      expect(config.getTruncateToolOutputThreshold()).toBe(124000);
-    });
-
-    it('should return the default threshold when the calculated value is larger', () => {
-      const config = new Config(baseParams);
-      vi.mocked(tokenLimit).mockReturnValue(2_000_000);
-      vi.mocked(uiTelemetryService.getLastPromptTokenCount).mockReturnValue(
-        500_000,
-      );
-      // 4 * (2_000_000 - 500_000) = 4 * 1_500_000 = 6_000_000
-      // default is 4_000_000
-      expect(config.getTruncateToolOutputThreshold()).toBe(4_000_000);
-    });
-
-    it('should use a custom truncateToolOutputThreshold if provided', () => {
-      const customParams = {
-        ...baseParams,
-        truncateToolOutputThreshold: 50000,
-      };
-      const config = new Config(customParams);
-      vi.mocked(tokenLimit).mockReturnValue(8000);
-      vi.mocked(uiTelemetryService.getLastPromptTokenCount).mockReturnValue(
-        2000,
-      );
-      // 4 * (8000 - 2000) = 4 * 6000 = 24000
-      // custom threshold is 50000
-      expect(config.getTruncateToolOutputThreshold()).toBe(24000);
-
-      vi.mocked(tokenLimit).mockReturnValue(32000);
-      vi.mocked(uiTelemetryService.getLastPromptTokenCount).mockReturnValue(
-        1000,
-      );
-      // 4 * (32000 - 1000) = 124000
-      // custom threshold is 50000
-      expect(config.getTruncateToolOutputThreshold()).toBe(50000);
-    });
-  });
 });
 
-describe('setApprovalMode with folder trust', () => {
+describe("setApprovalMode with folder trust", () => {
   const baseParams: ConfigParameters = {
-    sessionId: 'test',
-    targetDir: '.',
+    sessionId: "test",
+    targetDir: ".",
     debugMode: false,
-    model: 'test-model',
-    cwd: '.',
+    model: "test-model",
+    cwd: ".",
   };
 
-  it('should throw an error when setting YOLO mode in an untrusted folder', () => {
+  it("should throw an error when setting YOLO mode in an untrusted folder", () => {
     const config = new Config(baseParams);
-    vi.spyOn(config, 'isTrustedFolder').mockReturnValue(false);
+    vi.spyOn(config, "isTrustedFolder").mockReturnValue(false);
     expect(() => config.setApprovalMode(ApprovalMode.YOLO)).toThrow(
-      'Cannot enable privileged approval modes in an untrusted folder.',
+      "Cannot enable privileged approval modes in an untrusted folder.",
     );
   });
 
-  it('should throw an error when setting AUTO_EDIT mode in an untrusted folder', () => {
+  it("should throw an error when setting AUTO_EDIT mode in an untrusted folder", () => {
     const config = new Config(baseParams);
-    vi.spyOn(config, 'isTrustedFolder').mockReturnValue(false);
+    vi.spyOn(config, "isTrustedFolder").mockReturnValue(false);
     expect(() => config.setApprovalMode(ApprovalMode.AUTO_EDIT)).toThrow(
-      'Cannot enable privileged approval modes in an untrusted folder.',
+      "Cannot enable privileged approval modes in an untrusted folder.",
     );
   });
 
-  it('should NOT throw an error when setting DEFAULT mode in an untrusted folder', () => {
+  it("should NOT throw an error when setting DEFAULT mode in an untrusted folder", () => {
     const config = new Config(baseParams);
-    vi.spyOn(config, 'isTrustedFolder').mockReturnValue(false);
+    vi.spyOn(config, "isTrustedFolder").mockReturnValue(false);
     expect(() => config.setApprovalMode(ApprovalMode.DEFAULT)).not.toThrow();
   });
 
-  it('should NOT throw an error when setting any mode in a trusted folder', () => {
+  it("should NOT throw an error when setting any mode in a trusted folder", () => {
     const config = new Config(baseParams);
-    vi.spyOn(config, 'isTrustedFolder').mockReturnValue(true);
+    vi.spyOn(config, "isTrustedFolder").mockReturnValue(true);
     expect(() => config.setApprovalMode(ApprovalMode.YOLO)).not.toThrow();
     expect(() => config.setApprovalMode(ApprovalMode.AUTO_EDIT)).not.toThrow();
     expect(() => config.setApprovalMode(ApprovalMode.DEFAULT)).not.toThrow();
   });
 
-  it('should NOT throw an error when setting any mode if trustedFolder is undefined', () => {
+  it("should NOT throw an error when setting any mode if trustedFolder is undefined", () => {
     const config = new Config(baseParams);
-    vi.spyOn(config, 'isTrustedFolder').mockReturnValue(true); // isTrustedFolder defaults to true
+    vi.spyOn(config, "isTrustedFolder").mockReturnValue(true); // isTrustedFolder defaults to true
     expect(() => config.setApprovalMode(ApprovalMode.YOLO)).not.toThrow();
     expect(() => config.setApprovalMode(ApprovalMode.AUTO_EDIT)).not.toThrow();
     expect(() => config.setApprovalMode(ApprovalMode.DEFAULT)).not.toThrow();
   });
 
-  describe('registerCoreTools', () => {
+  describe("registerCoreTools", () => {
     beforeEach(() => {
       vi.clearAllMocks();
     });
 
-    it('should register RipGrepTool when useRipgrep is true and it is available', async () => {
+    it("should register RipGrepTool when useRipgrep is true and it is available", async () => {
       (canUseRipgrep as Mock).mockResolvedValue(true);
       const config = new Config({ ...baseParams, useRipgrep: true });
       await config.initialize();
@@ -952,7 +708,7 @@ describe('setApprovalMode with folder trust', () => {
       expect(logRipgrepFallback).not.toHaveBeenCalled();
     });
 
-    it('should register GrepTool as a fallback when useRipgrep is true but it is not available', async () => {
+    it("should register GrepTool as a fallback when useRipgrep is true but it is not available", async () => {
       (canUseRipgrep as Mock).mockResolvedValue(false);
       const config = new Config({ ...baseParams, useRipgrep: true });
       await config.initialize();
@@ -975,8 +731,8 @@ describe('setApprovalMode with folder trust', () => {
       expect(event.error).toBeUndefined();
     });
 
-    it('should register GrepTool as a fallback when canUseRipgrep throws an error', async () => {
-      const error = new Error('ripGrep check failed');
+    it("should register GrepTool as a fallback when canUseRipgrep throws an error", async () => {
+      const error = new Error("ripGrep check failed");
       (canUseRipgrep as Mock).mockRejectedValue(error);
       const config = new Config({ ...baseParams, useRipgrep: true });
       await config.initialize();
@@ -999,7 +755,7 @@ describe('setApprovalMode with folder trust', () => {
       expect(event.error).toBe(String(error));
     });
 
-    it('should register GrepTool when useRipgrep is false', async () => {
+    it("should register GrepTool when useRipgrep is false", async () => {
       const config = new Config({ ...baseParams, useRipgrep: false });
       await config.initialize();
 
@@ -1016,60 +772,5 @@ describe('setApprovalMode with folder trust', () => {
       expect(canUseRipgrep).not.toHaveBeenCalled();
       expect(logRipgrepFallback).not.toHaveBeenCalled();
     });
-  });
-});
-
-describe('BaseLlmClient Lifecycle', () => {
-  const MODEL = 'gemini-pro';
-  const SANDBOX: SandboxConfig = {
-    command: 'docker',
-    image: 'gemini-cli-sandbox',
-  };
-  const TARGET_DIR = '/path/to/target';
-  const DEBUG_MODE = false;
-  const QUESTION = 'test question';
-  const FULL_CONTEXT = false;
-  const USER_MEMORY = 'Test User Memory';
-  const TELEMETRY_SETTINGS = { enabled: false };
-  const EMBEDDING_MODEL = 'gemini-embedding';
-  const SESSION_ID = 'test-session-id';
-  const baseParams: ConfigParameters = {
-    cwd: '/tmp',
-    embeddingModel: EMBEDDING_MODEL,
-    sandbox: SANDBOX,
-    targetDir: TARGET_DIR,
-    debugMode: DEBUG_MODE,
-    question: QUESTION,
-    fullContext: FULL_CONTEXT,
-    userMemory: USER_MEMORY,
-    telemetry: TELEMETRY_SETTINGS,
-    sessionId: SESSION_ID,
-    model: MODEL,
-    usageStatisticsEnabled: false,
-  };
-
-  it('should throw an error if getBaseLlmClient is called before refreshAuth', () => {
-    const config = new Config(baseParams);
-    expect(() => config.getBaseLlmClient()).toThrow(
-      'BaseLlmClient not initialized. Ensure authentication has occurred and ContentGenerator is ready.',
-    );
-  });
-
-  it('should successfully initialize BaseLlmClient after refreshAuth is called', async () => {
-    const config = new Config(baseParams);
-    const authType = AuthType.USE_GEMINI;
-    const mockContentConfig = { model: 'gemini-flash', apiKey: 'test-key' };
-
-    vi.mocked(createContentGeneratorConfig).mockReturnValue(mockContentConfig);
-
-    await config.refreshAuth(authType);
-
-    // Should not throw
-    const llmService = config.getBaseLlmClient();
-    expect(llmService).toBeDefined();
-    expect(BaseLlmClient).toHaveBeenCalledWith(
-      config.getContentGenerator(),
-      config,
-    );
   });
 });

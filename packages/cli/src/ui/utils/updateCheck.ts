@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { UpdateInfo } from 'update-notifier';
-import updateNotifier from 'update-notifier';
-import semver from 'semver';
-import { getPackageJson } from '../../utils/package.js';
+import type { UpdateInfo } from "update-notifier";
+import updateNotifier from "update-notifier";
+import semver from "semver";
+import { getPackageJson } from "../../utils/package.js";
 
 export const FETCH_TIMEOUT_MS = 2000;
 
@@ -42,7 +42,7 @@ function getBestAvailableUpdate(
 export async function checkForUpdates(): Promise<UpdateObject | null> {
   try {
     // Skip update check when running from source (development mode)
-    if (process.env['DEV'] === 'true') {
+    if (process.env["DEV"] === "true") {
       return null;
     }
     const packageJson = await getPackageJson();
@@ -50,9 +50,14 @@ export async function checkForUpdates(): Promise<UpdateObject | null> {
       return null;
     }
 
+    // Skip update check for forks/private packages
+    if (packageJson.private || !packageJson.name.startsWith("@google/")) {
+      return null;
+    }
+
     const { name, version: currentVersion } = packageJson;
-    const isNightly = currentVersion.includes('nightly');
-    const createNotifier = (distTag: 'latest' | 'nightly') =>
+    const isNightly = currentVersion.includes("nightly");
+    const createNotifier = (distTag: "latest" | "nightly") =>
       updateNotifier({
         pkg: {
           name,
@@ -65,8 +70,8 @@ export async function checkForUpdates(): Promise<UpdateObject | null> {
 
     if (isNightly) {
       const [nightlyUpdateInfo, latestUpdateInfo] = await Promise.all([
-        createNotifier('nightly').fetchInfo(),
-        createNotifier('latest').fetchInfo(),
+        createNotifier("nightly").fetchInfo(),
+        createNotifier("latest").fetchInfo(),
       ]);
 
       const bestUpdate = getBestAvailableUpdate(
@@ -75,14 +80,14 @@ export async function checkForUpdates(): Promise<UpdateObject | null> {
       );
 
       if (bestUpdate && semver.gt(bestUpdate.latest, currentVersion)) {
-        const message = `A new version of Gemini CLI is available! ${currentVersion} → ${bestUpdate.latest}`;
+        const message = `A new version of KaiDex CLI is available! ${currentVersion} → ${bestUpdate.latest}`;
         return {
           message,
           update: { ...bestUpdate, current: currentVersion },
         };
       }
     } else {
-      const updateInfo = await createNotifier('latest').fetchInfo();
+      const updateInfo = await createNotifier("latest").fetchInfo();
 
       if (updateInfo && semver.gt(updateInfo.latest, currentVersion)) {
         const message = `Gemini CLI update available! ${currentVersion} → ${updateInfo.latest}`;
@@ -95,7 +100,7 @@ export async function checkForUpdates(): Promise<UpdateObject | null> {
 
     return null;
   } catch (e) {
-    console.warn('Failed to check for updates: ' + e);
+    console.warn("Failed to check for updates: " + e);
     return null;
   }
 }

@@ -4,35 +4,35 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { getCliVersion } from '../../utils/version.js';
-import type { CommandContext, SlashCommand } from './types.js';
-import { CommandKind } from './types.js';
-import process from 'node:process';
-import { MessageType, type HistoryItemAbout } from '../types.js';
-import { IdeClient } from '@google/gemini-cli-core';
+import { getCliVersion } from "../../utils/version.js";
+import type { CommandContext, SlashCommand } from "./types.js";
+import { CommandKind } from "./types.js";
+import process from "node:process";
+import { MessageType, type HistoryItemAbout } from "../types.js";
+import { IdeClient } from "@google/kaidex-cli-core";
 
 export const aboutCommand: SlashCommand = {
-  name: 'about',
-  description: 'show version info',
+  name: "about",
+  description: "show version info",
   kind: CommandKind.BUILT_IN,
   action: async (context) => {
     const osVersion = process.platform;
-    let sandboxEnv = 'no sandbox';
-    if (process.env['SANDBOX'] && process.env['SANDBOX'] !== 'sandbox-exec') {
-      sandboxEnv = process.env['SANDBOX'];
-    } else if (process.env['SANDBOX'] === 'sandbox-exec') {
+    let sandboxEnv = "no sandbox";
+    if (process.env["SANDBOX"] && process.env["SANDBOX"] !== "sandbox-exec") {
+      sandboxEnv = process.env["SANDBOX"];
+    } else if (process.env["SANDBOX"] === "sandbox-exec") {
       sandboxEnv = `sandbox-exec (${
-        process.env['SEATBELT_PROFILE'] || 'unknown'
+        process.env["SEATBELT_PROFILE"] || "unknown"
       })`;
     }
-    const modelVersion = context.services.config?.getModel() || 'Unknown';
+    const modelVersion = context.services.config?.getModel() || "Unknown";
     const cliVersion = await getCliVersion();
     const selectedAuthType =
-      context.services.settings.merged.security?.auth?.selectedType || '';
-    const gcpProject = process.env['GOOGLE_CLOUD_PROJECT'] || '';
+      context.services.settings.merged.security?.auth?.selectedType || "";
+    const gcpProject = process.env["GOOGLE_CLOUD_PROJECT"] || "";
     const ideClient = await getIdeClientName(context);
 
-    const aboutItem: Omit<HistoryItemAbout, 'id'> = {
+    const aboutItem: Omit<HistoryItemAbout, "id"> = {
       type: MessageType.ABOUT,
       cliVersion,
       osVersion,
@@ -49,8 +49,8 @@ export const aboutCommand: SlashCommand = {
 
 async function getIdeClientName(context: CommandContext) {
   if (!context.services.config?.getIdeMode()) {
-    return '';
+    return "";
   }
   const ideClient = await IdeClient.getInstance();
-  return ideClient?.getDetectedIdeDisplayName() ?? '';
+  return ideClient?.getDetectedIdeDisplayName() ?? "";
 }

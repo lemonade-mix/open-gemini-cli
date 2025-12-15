@@ -4,15 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type React from 'react';
-import { Box, Text } from 'ink';
-import { theme } from '../semantic-colors.js';
-import { type IdeContext, type MCPServerConfig } from '@google/gemini-cli-core';
-import { useTerminalSize } from '../hooks/useTerminalSize.js';
-import { isNarrowWidth } from '../utils/isNarrowWidth.js';
+import type React from "react";
+import { Box, Text } from "ink";
+import { Colors } from "../colors.js";
+import { type IdeContext, type MCPServerConfig } from "@google/kaidex-cli-core";
+import { useTerminalSize } from "../hooks/useTerminalSize.js";
+import { isNarrowWidth } from "../utils/isNarrowWidth.js";
 
 interface ContextSummaryDisplayProps {
-  geminiMdFileCount: number;
+  kaidexMdFileCount: number;
   contextFileNames: string[];
   mcpServers?: Record<string, MCPServerConfig>;
   blockedMcpServers?: Array<{ name: string; extensionName: string }>;
@@ -21,7 +21,7 @@ interface ContextSummaryDisplayProps {
 }
 
 export const ContextSummaryDisplay: React.FC<ContextSummaryDisplayProps> = ({
-  geminiMdFileCount,
+  kaidexMdFileCount,
   contextFileNames,
   mcpServers,
   blockedMcpServers,
@@ -35,7 +35,7 @@ export const ContextSummaryDisplay: React.FC<ContextSummaryDisplayProps> = ({
   const openFileCount = ideContext?.workspaceState?.openFiles?.length ?? 0;
 
   if (
-    geminiMdFileCount === 0 &&
+    kaidexMdFileCount === 0 &&
     mcpServerCount === 0 &&
     blockedMcpServerCount === 0 &&
     openFileCount === 0
@@ -45,64 +45,64 @@ export const ContextSummaryDisplay: React.FC<ContextSummaryDisplayProps> = ({
 
   const openFilesText = (() => {
     if (openFileCount === 0) {
-      return '';
+      return "";
     }
     return `${openFileCount} open file${
-      openFileCount > 1 ? 's' : ''
+      openFileCount > 1 ? "s" : ""
     } (ctrl+g to view)`;
   })();
 
-  const geminiMdText = (() => {
-    if (geminiMdFileCount === 0) {
-      return '';
+  const kaidexMdText = (() => {
+    if (kaidexMdFileCount === 0) {
+      return "";
     }
     const allNamesTheSame = new Set(contextFileNames).size < 2;
-    const name = allNamesTheSame ? contextFileNames[0] : 'context';
-    return `${geminiMdFileCount} ${name} file${
-      geminiMdFileCount > 1 ? 's' : ''
+    const name = allNamesTheSame ? contextFileNames[0] : "context";
+    return `${kaidexMdFileCount} ${name} file${
+      kaidexMdFileCount > 1 ? "s" : ""
     }`;
   })();
 
   const mcpText = (() => {
     if (mcpServerCount === 0 && blockedMcpServerCount === 0) {
-      return '';
+      return "";
     }
 
     const parts = [];
     if (mcpServerCount > 0) {
       parts.push(
-        `${mcpServerCount} MCP server${mcpServerCount > 1 ? 's' : ''}`,
+        `${mcpServerCount} MCP server${mcpServerCount > 1 ? "s" : ""}`,
       );
     }
 
     if (blockedMcpServerCount > 0) {
       let blockedText = `${blockedMcpServerCount} Blocked`;
       if (mcpServerCount === 0) {
-        blockedText += ` MCP server${blockedMcpServerCount > 1 ? 's' : ''}`;
+        blockedText += ` MCP server${blockedMcpServerCount > 1 ? "s" : ""}`;
       }
       parts.push(blockedText);
     }
-    let text = parts.join(', ');
+    let text = parts.join(", ");
     // Add ctrl+t hint when MCP servers are available
     if (mcpServers && Object.keys(mcpServers).length > 0) {
       if (showToolDescriptions) {
-        text += ' (ctrl+t to toggle)';
+        text += " (ctrl+t to toggle)";
       } else {
-        text += ' (ctrl+t to view)';
+        text += " (ctrl+t to view)";
       }
     }
     return text;
   })();
 
-  const summaryParts = [openFilesText, geminiMdText, mcpText].filter(Boolean);
+  const summaryParts = [openFilesText, kaidexMdText, mcpText].filter(Boolean);
 
   if (isNarrow) {
     return (
-      <Box flexDirection="column" paddingX={1}>
-        <Text color={theme.text.secondary}>Using:</Text>
+      <Box flexDirection="column">
+        <Text color={Colors.Gray}>Using:</Text>
         {summaryParts.map((part, index) => (
-          <Text key={index} color={theme.text.secondary}>
-            {'  '}- {part}
+          <Text key={index} color={Colors.Gray}>
+            {"  "}- {part}
           </Text>
         ))}
       </Box>
@@ -110,10 +110,8 @@ export const ContextSummaryDisplay: React.FC<ContextSummaryDisplayProps> = ({
   }
 
   return (
-    <Box paddingX={1}>
-      <Text color={theme.text.secondary}>
-        Using: {summaryParts.join(' | ')}
-      </Text>
+    <Box>
+      <Text color={Colors.Gray}>Using: {summaryParts.join(" | ")}</Text>
     </Box>
   );
 };

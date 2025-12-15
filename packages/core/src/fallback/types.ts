@@ -8,9 +8,9 @@
  * Defines the intent returned by the UI layer during a fallback scenario.
  */
 export type FallbackIntent =
-  | 'retry' // Immediately retry the current request with the fallback model.
-  | 'stop' // Switch to fallback for future requests, but stop the current request.
-  | 'auth'; // Stop the current request; user intends to change authentication.
+  | "retry" // Immediately retry the current request with the fallback model.
+  | "stop" // Switch to fallback for future requests, but stop the current request.
+  | "auth"; // Stop the current request; user intends to change authentication.
 
 /**
  * The interface for the handler provided by the UI layer (e.g., the CLI)

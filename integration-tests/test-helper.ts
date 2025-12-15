@@ -4,24 +4,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { execSync, spawn } from 'node:child_process';
-import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { env } from 'node:process';
-import { DEFAULT_GEMINI_MODEL } from '../packages/core/src/config/models.js';
-import fs from 'node:fs';
-import * as pty from '@lydell/node-pty';
-import stripAnsi from 'strip-ansi';
-import * as os from 'node:os';
+import { execSync, spawn } from "node:child_process";
+import { mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { env } from "node:process";
+import fs from "node:fs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 function sanitizeTestName(name: string) {
   return name
     .toLowerCase()
-    .replace(/[^a-z0-9]/g, '-')
-    .replace(/-+/g, '-');
+    .replace(/[^a-z0-9]/g, "-")
+    .replace(/-+/g, "-");
 }
 
 // Helper to create detailed error messages
@@ -31,12 +27,12 @@ export function createToolCallErrorMessage(
   result: string,
 ) {
   const expectedStr = Array.isArray(expectedTools)
-    ? expectedTools.join(' or ')
+    ? expectedTools.join(" or ")
     : expectedTools;
   return (
     `Expected to find ${expectedStr} tool call(s). ` +
-    `Found: ${foundTools.length > 0 ? foundTools.join(', ') : 'none'}. ` +
-    `Output preview: ${result ? result.substring(0, 200) + '...' : 'no output'}`
+    `Found: ${foundTools.length > 0 ? foundTools.join(", ") : "none"}. ` +
+    `Output preview: ${result ? result.substring(0, 200) + "..." : "no output"}`
   );
 }
 
@@ -46,11 +42,11 @@ export function printDebugInfo(
   result: string,
   context: Record<string, unknown> = {},
 ) {
-  console.error('Test failed - Debug info:');
-  console.error('Result length:', result.length);
-  console.error('Result (first 500 chars):', result.substring(0, 500));
+  console.error("Test failed - Debug info:");
+  console.error("Result length:", result.length);
+  console.error("Result (first 500 chars):", result.substring(0, 500));
   console.error(
-    'Result (last 500 chars):',
+    "Result (last 500 chars):",
     result.substring(result.length - 500),
   );
 
@@ -62,7 +58,7 @@ export function printDebugInfo(
   // Check what tools were actually called
   const allTools = rig.readToolLogs();
   console.error(
-    'All tool calls found:',
+    "All tool calls found:",
     allTools.map((t) => t.toolRequest.name),
   );
 
@@ -73,11 +69,11 @@ export function printDebugInfo(
 export function validateModelOutput(
   result: string,
   expectedContent: string | (string | RegExp)[] | null = null,
-  testName = '',
+  testName = "",
 ) {
   // First, check if there's any output at all (this should fail the test if missing)
   if (!result || result.trim().length === 0) {
-    throw new Error('Expected LLM to return some output');
+    throw new Error("Expected LLM to return some output");
   }
 
   // If expectedContent is provided, check for it and warn if missing
@@ -86,7 +82,7 @@ export function validateModelOutput(
       ? expectedContent
       : [expectedContent];
     const missingContent = contents.filter((content) => {
-      if (typeof content === 'string') {
+      if (typeof content === "string") {
         return !result.toLowerCase().includes(content.toLowerCase());
       } else if (content instanceof RegExp) {
         return !content.test(result);
@@ -97,17 +93,15 @@ export function validateModelOutput(
     if (missingContent.length > 0) {
       console.warn(
         `Warning: LLM did not include expected content in response: ${missingContent.join(
-          ', ',
+          ", ",
         )}.`,
-        'This is not ideal but not a test failure.',
+        "This is not ideal but not a test failure.",
       );
       console.warn(
-        'The tool was called successfully, which is the main requirement.',
+        "The tool was called successfully, which is the main requirement.",
       );
-      console.warn('Expected content:', expectedContent);
-      console.warn('Actual output:', result);
       return false;
-    } else if (process.env.VERBOSE === 'true') {
+    } else if (process.env.VERBOSE === "true") {
       console.log(`${testName}: Model output validated successfully.`);
     }
     return true;
@@ -116,41 +110,14 @@ export function validateModelOutput(
   return true;
 }
 
-// Simulates typing a string one character at a time to avoid paste detection.
-export async function type(ptyProcess: pty.IPty, text: string) {
-  const delay = 5;
-  for (const char of text) {
-    ptyProcess.write(char);
-    await new Promise((resolve) => setTimeout(resolve, delay));
-  }
-}
-
-interface ParsedLog {
-  attributes?: {
-    'event.name'?: string;
-    function_name?: string;
-    function_args?: string;
-    success?: boolean;
-    duration_ms?: number;
-  };
-  scopeMetrics?: {
-    metrics: {
-      descriptor: {
-        name: string;
-      };
-    }[];
-  }[];
-}
-
 export class TestRig {
   bundlePath: string;
   testDir: string | null;
   testName?: string;
   _lastRunStdout?: string;
-  _interactiveOutput = '';
 
   constructor() {
-    this.bundlePath = join(__dirname, '..', 'bundle/gemini.js');
+    this.bundlePath = join(__dirname, "..", "bundle/gemini.js");
     this.testDir = null;
   }
 
@@ -171,30 +138,24 @@ export class TestRig {
     mkdirSync(this.testDir, { recursive: true });
 
     // Create a settings file to point the CLI to the local collector
-    const geminiDir = join(this.testDir, '.gemini');
+    const geminiDir = join(this.testDir, ".kaidex");
     mkdirSync(geminiDir, { recursive: true });
     // In sandbox mode, use an absolute path for telemetry inside the container
     // The container mounts the test directory at the same path as the host
-    const telemetryPath = join(this.testDir, 'telemetry.log'); // Always use test directory for telemetry
+    const telemetryPath = join(this.testDir, "telemetry.log"); // Always use test directory for telemetry
 
     const settings = {
-      general: {
-        // Nightly releases sometimes becomes out of sync with local code and
-        // triggers auto-update, which causes tests to fail.
-        disableAutoUpdate: true,
-      },
       telemetry: {
         enabled: true,
-        target: 'local',
-        otlpEndpoint: '',
+        target: "local",
+        otlpEndpoint: "",
         outfile: telemetryPath,
       },
-      model: DEFAULT_GEMINI_MODEL,
-      sandbox: env.GEMINI_SANDBOX !== 'false' ? env.GEMINI_SANDBOX : false,
+      sandbox: env.GEMINI_SANDBOX !== "false" ? env.GEMINI_SANDBOX : false,
       ...options.settings, // Allow tests to override/add settings
     };
     writeFileSync(
-      join(geminiDir, 'settings.json'),
+      join(geminiDir, "settings.json"),
       JSON.stringify(settings, null, 2),
     );
   }
@@ -211,25 +172,7 @@ export class TestRig {
 
   sync() {
     // ensure file system is done before spawning
-    execSync('sync', { cwd: this.testDir! });
-  }
-
-  /**
-   * The command and args to use to invoke Gemini CLI. Allows us to switch
-   * between using the bundled gemini.js (the default) and using the installed
-   * 'gemini' (used to verify npm bundles).
-   */
-  private _getCommandAndArgs(extraInitialArgs: string[] = []): {
-    command: string;
-    initialArgs: string[];
-  } {
-    const isNpmReleaseTest =
-      process.env.INTEGRATION_TEST_USE_INSTALLED_GEMINI === 'true';
-    const command = isNpmReleaseTest ? 'gemini' : 'node';
-    const initialArgs = isNpmReleaseTest
-      ? extraInitialArgs
-      : [this.bundlePath, ...extraInitialArgs];
-    return { command, initialArgs };
+    execSync("sync", { cwd: this.testDir! });
   }
 
   run(
@@ -238,25 +181,24 @@ export class TestRig {
       | { prompt?: string; stdin?: string; stdinDoesNotEnd?: boolean },
     ...args: string[]
   ): Promise<string> {
-    const { command, initialArgs } = this._getCommandAndArgs(['--yolo']);
-    const commandArgs = [...initialArgs];
+    const commandArgs = [this.bundlePath, "--yolo"];
     const execOptions: {
       cwd: string;
-      encoding: 'utf-8';
+      encoding: "utf-8";
       input?: string;
     } = {
       cwd: this.testDir!,
-      encoding: 'utf-8',
+      encoding: "utf-8",
     };
 
-    if (typeof promptOrOptions === 'string') {
-      commandArgs.push('--prompt', promptOrOptions);
+    if (typeof promptOrOptions === "string") {
+      commandArgs.push("--prompt", promptOrOptions);
     } else if (
-      typeof promptOrOptions === 'object' &&
+      typeof promptOrOptions === "object" &&
       promptOrOptions !== null
     ) {
       if (promptOrOptions.prompt) {
-        commandArgs.push('--prompt', promptOrOptions.prompt);
+        commandArgs.push("--prompt", promptOrOptions.prompt);
       }
       if (promptOrOptions.stdin) {
         execOptions.input = promptOrOptions.stdin;
@@ -265,14 +207,13 @@ export class TestRig {
 
     commandArgs.push(...args);
 
-    const child = spawn(command, commandArgs, {
+    const child = spawn("node", commandArgs, {
       cwd: this.testDir!,
-      stdio: 'pipe',
-      env: process.env,
+      stdio: "pipe",
     });
 
-    let stdout = '';
-    let stderr = '';
+    let stdout = "";
+    let stderr = "";
 
     // Handle stdin if provided
     if (execOptions.input) {
@@ -280,28 +221,28 @@ export class TestRig {
     }
 
     if (
-      typeof promptOrOptions === 'object' &&
+      typeof promptOrOptions === "object" &&
       !promptOrOptions.stdinDoesNotEnd
     ) {
       child.stdin!.end();
     }
 
-    child.stdout!.on('data', (data: Buffer) => {
+    child.stdout!.on("data", (data: Buffer) => {
       stdout += data;
-      if (env.KEEP_OUTPUT === 'true' || env.VERBOSE === 'true') {
+      if (env.KEEP_OUTPUT === "true" || env.VERBOSE === "true") {
         process.stdout.write(data);
       }
     });
 
-    child.stderr!.on('data', (data: Buffer) => {
+    child.stderr!.on("data", (data: Buffer) => {
       stderr += data;
-      if (env.KEEP_OUTPUT === 'true' || env.VERBOSE === 'true') {
+      if (env.KEEP_OUTPUT === "true" || env.VERBOSE === "true") {
         process.stderr.write(data);
       }
     });
 
     const promise = new Promise<string>((resolve, reject) => {
-      child.on('close', (code: number) => {
+      child.on("close", (code: number) => {
         if (code === 0) {
           // Store the raw stdout for Podman telemetry parsing
           this._lastRunStdout = stdout;
@@ -309,7 +250,7 @@ export class TestRig {
           // Filter out telemetry output when running with Podman
           // Podman seems to output telemetry to stdout even when writing to file
           let result = stdout;
-          if (env.GEMINI_SANDBOX === 'podman') {
+          if (env.GEMINI_SANDBOX === "podman") {
             // Remove telemetry JSON objects from output
             // They are multi-line JSON objects that start with { and contain telemetry fields
             const lines = result.split(EOL);
@@ -318,15 +259,15 @@ export class TestRig {
             let braceDepth = 0;
 
             for (const line of lines) {
-              if (!inTelemetryObject && line.trim() === '{') {
+              if (!inTelemetryObject && line.trim() === "{") {
                 // Check if this might be start of telemetry object
                 inTelemetryObject = true;
                 braceDepth = 1;
               } else if (inTelemetryObject) {
                 // Count braces to track nesting
                 for (const char of line) {
-                  if (char === '{') braceDepth++;
-                  else if (char === '}') braceDepth--;
+                  if (char === "{") braceDepth++;
+                  else if (char === "}") braceDepth--;
                 }
 
                 // Check if we've closed all braces
@@ -341,72 +282,13 @@ export class TestRig {
               }
             }
 
-            result = filteredLines.join('\n');
+            result = filteredLines.join("\n");
           }
-
-          // Check if this is a JSON output test - if so, don't include stderr
-          // as it would corrupt the JSON
-          const isJsonOutput =
-            commandArgs.includes('--output-format') &&
-            commandArgs.includes('json');
-
-          // If we have stderr output and it's not a JSON test, include that also
-          if (stderr && !isJsonOutput) {
-            result += `\n\nStdErr:\n${stderr}`;
-          }
-
-          resolve(result);
-        } else {
-          reject(new Error(`Process exited with code ${code}:\n${stderr}`));
-        }
-      });
-    });
-
-    return promise;
-  }
-
-  runCommand(
-    args: string[],
-    options: { stdin?: string } = {},
-  ): Promise<string> {
-    const { command, initialArgs } = this._getCommandAndArgs();
-    const commandArgs = [...initialArgs, ...args];
-
-    const child = spawn(command, commandArgs, {
-      cwd: this.testDir!,
-      stdio: 'pipe',
-    });
-
-    let stdout = '';
-    let stderr = '';
-
-    if (options.stdin) {
-      child.stdin!.write(options.stdin);
-      child.stdin!.end();
-    }
-
-    child.stdout!.on('data', (data: Buffer) => {
-      stdout += data;
-      if (env.KEEP_OUTPUT === 'true' || env.VERBOSE === 'true') {
-        process.stdout.write(data);
-      }
-    });
-
-    child.stderr!.on('data', (data: Buffer) => {
-      stderr += data;
-      if (env.KEEP_OUTPUT === 'true' || env.VERBOSE === 'true') {
-        process.stderr.write(data);
-      }
-    });
-
-    const promise = new Promise<string>((resolve, reject) => {
-      child.on('close', (code: number) => {
-        if (code === 0) {
-          this._lastRunStdout = stdout;
-          let result = stdout;
+          // If we have stderr output, include that also
           if (stderr) {
             result += `\n\nStdErr:\n${stderr}`;
           }
+
           resolve(result);
         } else {
           reject(new Error(`Process exited with code ${code}:\n${stderr}`));
@@ -419,8 +301,8 @@ export class TestRig {
 
   readFile(fileName: string) {
     const filePath = join(this.testDir!, fileName);
-    const content = readFileSync(filePath, 'utf-8');
-    if (env.KEEP_OUTPUT === 'true' || env.VERBOSE === 'true') {
+    const content = readFileSync(filePath, "utf-8");
+    if (env.KEEP_OUTPUT === "true" || env.VERBOSE === "true") {
       console.log(`--- FILE: ${filePath} ---`);
       console.log(content);
       console.log(`--- END FILE: ${filePath} ---`);
@@ -435,8 +317,8 @@ export class TestRig {
         execSync(`rm -rf ${this.testDir}`);
       } catch (error) {
         // Ignore cleanup errors
-        if (env.VERBOSE === 'true') {
-          console.warn('Cleanup warning:', (error as Error).message);
+        if (env.VERBOSE === "true") {
+          console.warn("Cleanup warning:", (error as Error).message);
         }
       }
     }
@@ -444,7 +326,7 @@ export class TestRig {
 
   async waitForTelemetryReady() {
     // Telemetry is always written to the test directory
-    const logFilePath = join(this.testDir!, 'telemetry.log');
+    const logFilePath = join(this.testDir!, "telemetry.log");
 
     if (!logFilePath) return;
 
@@ -453,7 +335,7 @@ export class TestRig {
       () => {
         if (!fs.existsSync(logFilePath)) return false;
         try {
-          const content = readFileSync(logFilePath, 'utf-8');
+          const content = readFileSync(logFilePath, "utf-8");
           // Check if file has meaningful content (at least one complete JSON object)
           return content.includes('"event.name"');
         } catch {
@@ -474,12 +356,37 @@ export class TestRig {
 
     return this.poll(
       () => {
-        const logs = this._readAndParseTelemetryLog();
-        return logs.some(
-          (logData) =>
-            logData.attributes &&
-            logData.attributes['event.name'] === `gemini_cli.${eventName}`,
-        );
+        const logFilePath = join(this.testDir!, "telemetry.log");
+
+        if (!logFilePath || !fs.existsSync(logFilePath)) {
+          return false;
+        }
+
+        const content = readFileSync(logFilePath, "utf-8");
+        const jsonObjects = content
+          .split(/}\n{/)
+          .map((obj, index, array) => {
+            // Add back the braces we removed during split
+            if (index > 0) obj = "{" + obj;
+            if (index < array.length - 1) obj = obj + "}";
+            return obj.trim();
+          })
+          .filter((obj) => obj);
+
+        for (const jsonStr of jsonObjects) {
+          try {
+            const logData = JSON.parse(jsonStr);
+            if (
+              logData.attributes &&
+              logData.attributes["event.name"] === `gemini_cli.${eventName}`
+            ) {
+              return true;
+            }
+          } catch {
+            // ignore
+          }
+        }
+        return false;
       },
       timeout,
       100,
@@ -536,9 +443,9 @@ export class TestRig {
     while (Date.now() - startTime < timeout) {
       attempts++;
       const result = predicate();
-      if (env.VERBOSE === 'true' && attempts % 5 === 0) {
+      if (env.VERBOSE === "true" && attempts % 5 === 0) {
         console.log(
-          `Poll attempt ${attempts}: ${result ? 'success' : 'waiting...'}`,
+          `Poll attempt ${attempts}: ${result ? "success" : "waiting..."}`,
         );
       }
       if (result) {
@@ -546,7 +453,7 @@ export class TestRig {
       }
       await new Promise((resolve) => setTimeout(resolve, interval));
     }
-    if (env.VERBOSE === 'true') {
+    if (env.VERBOSE === "true") {
       console.log(`Poll timed out after ${attempts} attempts`);
     }
     return false;
@@ -572,7 +479,7 @@ export class TestRig {
 
     for (const match of matches) {
       const toolName = match[1];
-      const success = match[2] === 'true';
+      const success = match[2] === "true";
       const duration = parseInt(match[3], 10);
 
       // Try to find function_args nearby
@@ -582,7 +489,7 @@ export class TestRig {
       const context = stdout.substring(contextStart, contextEnd);
 
       // Look for function_args in the context
-      let args = '{}';
+      let args = "{}";
       const argsMatch = context.match(/function_args:\s*'([^']+)'/);
       if (argsMatch) {
         args = argsMatch[1];
@@ -608,22 +515,22 @@ export class TestRig {
     // in case the format changes
     if (logs.length === 0) {
       const lines = stdout.split(EOL);
-      let currentObject = '';
+      let currentObject = "";
       let inObject = false;
       let braceDepth = 0;
 
       for (const line of lines) {
-        if (!inObject && line.trim() === '{') {
+        if (!inObject && line.trim() === "{") {
           inObject = true;
           braceDepth = 1;
-          currentObject = line + '\n';
+          currentObject = line + "\n";
         } else if (inObject) {
-          currentObject += line + '\n';
+          currentObject += line + "\n";
 
           // Count braces
           for (const char of line) {
-            if (char === '{') braceDepth++;
-            else if (char === '}') braceDepth--;
+            if (char === "{") braceDepth++;
+            else if (char === "}") braceDepth--;
           }
 
           // If we've closed all braces, try to parse the object
@@ -635,7 +542,7 @@ export class TestRig {
               // Check for tool call in different formats
               if (
                 obj.body &&
-                obj.body.includes('Tool call:') &&
+                obj.body.includes("Tool call:") &&
                 obj.attributes
               ) {
                 const bodyMatch = obj.body.match(/Tool call: (\w+)\./);
@@ -644,7 +551,7 @@ export class TestRig {
                     timestamp: obj.timestamp || Date.now(),
                     toolRequest: {
                       name: bodyMatch[1],
-                      args: obj.attributes.function_args || '{}',
+                      args: obj.attributes.function_args || "{}",
                       success: obj.attributes.success !== false,
                       duration_ms: obj.attributes.duration_ms || 0,
                     },
@@ -652,10 +559,10 @@ export class TestRig {
                 }
               } else if (
                 obj.attributes &&
-                obj.attributes['event.name'] === 'gemini_cli.tool_call'
+                obj.attributes["event.name"] === "gemini_cli.tool_call"
               ) {
                 logs.push({
-                  timestamp: obj.attributes['event.timestamp'],
+                  timestamp: obj.attributes["event.timestamp"],
                   toolRequest: {
                     name: obj.attributes.function_name,
                     args: obj.attributes.function_args,
@@ -667,47 +574,8 @@ export class TestRig {
             } catch {
               // Not valid JSON
             }
-            currentObject = '';
+            currentObject = "";
           }
-        }
-      }
-    }
-
-    return logs;
-  }
-
-  private _readAndParseTelemetryLog(): ParsedLog[] {
-    // Telemetry is always written to the test directory
-    const logFilePath = join(this.testDir!, 'telemetry.log');
-
-    if (!logFilePath || !fs.existsSync(logFilePath)) {
-      return [];
-    }
-
-    const content = readFileSync(logFilePath, 'utf-8');
-
-    // Split the content into individual JSON objects
-    // They are separated by "}\n{"
-    const jsonObjects = content
-      .split(/}\n{/)
-      .map((obj, index, array) => {
-        // Add back the braces we removed during split
-        if (index > 0) obj = '{' + obj;
-        if (index < array.length - 1) obj = obj + '}';
-        return obj.trim();
-      })
-      .filter((obj) => obj);
-
-    const logs: ParsedLog[] = [];
-
-    for (const jsonStr of jsonObjects) {
-      try {
-        const logData = JSON.parse(jsonStr);
-        logs.push(logData);
-      } catch (e) {
-        // Skip objects that aren't valid JSON
-        if (env.VERBOSE === 'true') {
-          console.error('Failed to parse telemetry object:', e);
         }
       }
     }
@@ -718,13 +586,13 @@ export class TestRig {
   readToolLogs() {
     // For Podman, first check if telemetry file exists and has content
     // If not, fall back to parsing from stdout
-    if (env.GEMINI_SANDBOX === 'podman') {
+    if (env.GEMINI_SANDBOX === "podman") {
       // Try reading from file first
-      const logFilePath = join(this.testDir!, 'telemetry.log');
+      const logFilePath = join(this.testDir!, "telemetry.log");
 
       if (fs.existsSync(logFilePath)) {
         try {
-          const content = readFileSync(logFilePath, 'utf-8');
+          const content = readFileSync(logFilePath, "utf-8");
           if (content && content.includes('"event.name"')) {
             // File has content, use normal file parsing
             // Continue to the normal file parsing logic below
@@ -744,7 +612,33 @@ export class TestRig {
       }
     }
 
-    const parsedLogs = this._readAndParseTelemetryLog();
+    // Telemetry is always written to the test directory
+    const logFilePath = join(this.testDir!, "telemetry.log");
+
+    if (!logFilePath) {
+      console.warn(`TELEMETRY_LOG_FILE environment variable not set`);
+      return [];
+    }
+
+    // Check if file exists, if not return empty array (file might not be created yet)
+    if (!fs.existsSync(logFilePath)) {
+      return [];
+    }
+
+    const content = readFileSync(logFilePath, "utf-8");
+
+    // Split the content into individual JSON objects
+    // They are separated by "}\n{"
+    const jsonObjects = content
+      .split(/}\n{/)
+      .map((obj, index, array) => {
+        // Add back the braces we removed during split
+        if (index > 0) obj = "{" + obj;
+        if (index < array.length - 1) obj = obj + "}";
+        return obj.trim();
+      })
+      .filter((obj) => obj);
+
     const logs: {
       toolRequest: {
         name: string;
@@ -754,21 +648,29 @@ export class TestRig {
       };
     }[] = [];
 
-    for (const logData of parsedLogs) {
-      // Look for tool call logs
-      if (
-        logData.attributes &&
-        logData.attributes['event.name'] === 'gemini_cli.tool_call'
-      ) {
-        const toolName = logData.attributes.function_name;
-        logs.push({
-          toolRequest: {
-            name: toolName,
-            args: logData.attributes.function_args,
-            success: logData.attributes.success,
-            duration_ms: logData.attributes.duration_ms,
-          },
-        });
+    for (const jsonStr of jsonObjects) {
+      try {
+        const logData = JSON.parse(jsonStr);
+        // Look for tool call logs
+        if (
+          logData.attributes &&
+          logData.attributes["event.name"] === "gemini_cli.tool_call"
+        ) {
+          const toolName = logData.attributes.function_name;
+          logs.push({
+            toolRequest: {
+              name: toolName,
+              args: logData.attributes.function_args,
+              success: logData.attributes.success,
+              duration_ms: logData.attributes.duration_ms,
+            },
+          });
+        }
+      } catch (e) {
+        // Skip objects that aren't valid JSON
+        if (env.VERBOSE === "true") {
+          console.error("Failed to parse telemetry object:", e);
+        }
       }
     }
 
@@ -776,134 +678,38 @@ export class TestRig {
   }
 
   readLastApiRequest(): Record<string, unknown> | null {
-    const logs = this._readAndParseTelemetryLog();
-    const apiRequests = logs.filter(
-      (logData) =>
-        logData.attributes &&
-        logData.attributes['event.name'] === 'gemini_cli.api_request',
-    );
-    return apiRequests.pop() || null;
-  }
+    // Telemetry is always written to the test directory
+    const logFilePath = join(this.testDir!, "telemetry.log");
 
-  readMetric(metricName: string): Record<string, unknown> | null {
-    const logs = this._readAndParseTelemetryLog();
-    for (const logData of logs) {
-      if (logData.scopeMetrics) {
-        for (const scopeMetric of logData.scopeMetrics) {
-          for (const metric of scopeMetric.metrics) {
-            if (metric.descriptor.name === `gemini_cli.${metricName}`) {
-              return metric;
-            }
-          }
+    if (!logFilePath || !fs.existsSync(logFilePath)) {
+      return null;
+    }
+
+    const content = readFileSync(logFilePath, "utf-8");
+    const jsonObjects = content
+      .split(/}\n{/)
+      .map((obj, index, array) => {
+        if (index > 0) obj = "{" + obj;
+        if (index < array.length - 1) obj = obj + "}";
+        return obj.trim();
+      })
+      .filter((obj) => obj);
+
+    let lastApiRequest = null;
+
+    for (const jsonStr of jsonObjects) {
+      try {
+        const logData = JSON.parse(jsonStr);
+        if (
+          logData.attributes &&
+          logData.attributes["event.name"] === "gemini_cli.api_request"
+        ) {
+          lastApiRequest = logData;
         }
+      } catch {
+        // ignore
       }
     }
-    return null;
-  }
-
-  async waitForText(text: string, timeout?: number): Promise<boolean> {
-    if (!timeout) {
-      timeout = this.getDefaultTimeout();
-    }
-    return this.poll(
-      () =>
-        stripAnsi(this._interactiveOutput)
-          .toLowerCase()
-          .includes(text.toLowerCase()),
-      timeout,
-      200,
-    );
-  }
-
-  runInteractive(...args: string[]): {
-    ptyProcess: pty.IPty;
-    promise: Promise<{ exitCode: number; signal?: number; output: string }>;
-  } {
-    const { command, initialArgs } = this._getCommandAndArgs(['--yolo']);
-    const commandArgs = [...initialArgs, ...args];
-    const isWindows = os.platform() === 'win32';
-
-    this._interactiveOutput = ''; // Reset output for the new run
-
-    const options: pty.IPtyForkOptions = {
-      name: 'xterm-color',
-      cols: 80,
-      rows: 30,
-      cwd: this.testDir!,
-      env: Object.fromEntries(
-        Object.entries(process.env).filter(([, v]) => v !== undefined),
-      ) as { [key: string]: string },
-    };
-
-    if (isWindows) {
-      // node-pty on Windows requires a shell to be specified when using winpty.
-      options.shell = process.env.COMSPEC || 'cmd.exe';
-    }
-
-    const executable = command === 'node' ? process.execPath : command;
-    const ptyProcess = pty.spawn(executable, commandArgs, options);
-
-    ptyProcess.onData((data) => {
-      this._interactiveOutput += data;
-      if (env.KEEP_OUTPUT === 'true' || env.VERBOSE === 'true') {
-        process.stdout.write(data);
-      }
-    });
-
-    const promise = new Promise<{
-      exitCode: number;
-      signal?: number;
-      output: string;
-    }>((resolve) => {
-      ptyProcess.onExit(({ exitCode, signal }) => {
-        resolve({ exitCode, signal, output: this._interactiveOutput });
-      });
-    });
-
-    return { ptyProcess, promise };
-  }
-
-  /**
-   * Waits for an interactive session to be fully ready for input.
-   * This is a higher-level utility to be used with `runInteractive`.
-   *
-   * It handles the initial setup boilerplate:
-   * 1. Automatically handles the authentication prompt if it appears.
-   * 2. Waits for the "Type your message" prompt to ensure the CLI is ready for input.
-   *
-   * Throws an error if the session fails to become ready within the timeout.
-   *
-   * @param ptyProcess The process returned from `runInteractive`.
-   */
-  async ensureReadyForInput(ptyProcess: pty.IPty): Promise<void> {
-    const timeout = 25000;
-    const pollingInterval = 200;
-    const startTime = Date.now();
-    let authPromptHandled = false;
-
-    while (Date.now() - startTime < timeout) {
-      const output = stripAnsi(this._interactiveOutput).toLowerCase();
-
-      // If the ready prompt appears, we're done.
-      if (output.includes('type your message')) {
-        return;
-      }
-
-      // If the auth prompt appears and we haven't handled it yet.
-      if (
-        !authPromptHandled &&
-        output.includes('how would you like to authenticate')
-      ) {
-        ptyProcess.write('2');
-        authPromptHandled = true;
-      }
-
-      // Wait for the next poll.
-      await new Promise((resolve) => setTimeout(resolve, pollingInterval));
-    }
-
-    throw new Error(
-      `CLI did not start up in interactive mode correctly. Output: ${this._interactiveOutput}`,
-    );
+    return lastApiRequest;
   }
 }

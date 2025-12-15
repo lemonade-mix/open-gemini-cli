@@ -4,30 +4,28 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { createContext, useContext } from 'react';
+import { createContext, useContext } from "react";
 import type {
   HistoryItem,
   ThoughtSummary,
   ConsoleMessageItem,
   ShellConfirmationRequest,
   ConfirmationRequest,
-  LoopDetectionConfirmationRequest,
   HistoryItemWithoutId,
   StreamingState,
-} from '../types.js';
-import type { CommandContext, SlashCommand } from '../commands/types.js';
-import type { TextBuffer } from '../components/shared/text-buffer.js';
+} from "../types.js";
+import type { CommandContext, SlashCommand } from "../commands/types.js";
+import type { TextBuffer } from "../components/shared/text-buffer.js";
 import type {
   IdeContext,
   ApprovalMode,
   UserTierId,
-  IdeInfo,
+  DetectedIde,
   FallbackIntent,
-} from '@google/gemini-cli-core';
-import type { DOMElement } from 'ink';
-import type { SessionStatsState } from '../contexts/SessionContext.js';
-import type { ExtensionUpdateState } from '../state/extensions.js';
-import type { UpdateObject } from '../utils/updateCheck.js';
+} from "@google/kaidex-cli-core";
+import type { DOMElement } from "ink";
+import type { SessionStatsState } from "../contexts/SessionContext.js";
+import type { UpdateObject } from "../utils/updateCheck.js";
 
 export interface ProQuotaDialogRequest {
   failedModel: string;
@@ -35,12 +33,8 @@ export interface ProQuotaDialogRequest {
   resolve: (intent: FallbackIntent) => void;
 }
 
-import { type UseHistoryManagerReturn } from '../hooks/useHistoryManager.js';
-import { type RestartReason } from '../hooks/useIdeTrustListener.js';
-
 export interface UIState {
   history: HistoryItem[];
-  historyManager: UseHistoryManagerReturn;
   isThemeDialogOpen: boolean;
   themeError: string | null;
   isAuthenticating: boolean;
@@ -54,16 +48,12 @@ export interface UIState {
   debugMessage: string;
   quittingMessages: HistoryItem[] | null;
   isSettingsDialogOpen: boolean;
-  isModelDialogOpen: boolean;
-  isPermissionsDialogOpen: boolean;
   slashCommands: readonly SlashCommand[];
   pendingSlashCommandHistoryItems: HistoryItemWithoutId[];
   commandContext: CommandContext;
   shellConfirmationRequest: ShellConfirmationRequest | null;
   confirmationRequest: ConfirmationRequest | null;
-  confirmUpdateExtensionRequests: ConfirmationRequest[];
-  loopDetectionConfirmationRequest: LoopDetectionConfirmationRequest | null;
-  geminiMdFileCount: number;
+  kaidexMdFileCount: number;
   streamingState: StreamingState;
   initError: string | null;
   pendingGeminiHistoryItems: HistoryItemWithoutId[];
@@ -85,6 +75,7 @@ export interface UIState {
   ctrlCPressedOnce: boolean;
   ctrlDPressedOnce: boolean;
   showEscapePrompt: boolean;
+  isFocused: boolean;
   elapsedTime: number;
   currentLoadingPhrase: string;
   historyRemountKey: number;
@@ -111,15 +102,10 @@ export interface UIState {
   terminalWidth: number;
   terminalHeight: number;
   mainControlsRef: React.MutableRefObject<DOMElement | null>;
-  currentIDE: IdeInfo | null;
+  currentIDE: DetectedIde | null;
   updateInfo: UpdateObject | null;
   showIdeRestartPrompt: boolean;
-  ideTrustRestartReason: RestartReason;
   isRestarting: boolean;
-  extensionsUpdateState: Map<string, ExtensionUpdateState>;
-  activePtyId: number | undefined;
-  embeddedShellFocused: boolean;
-  showDebugProfiler: boolean;
 }
 
 export const UIStateContext = createContext<UIState | null>(null);
@@ -127,7 +113,7 @@ export const UIStateContext = createContext<UIState | null>(null);
 export const useUIState = () => {
   const context = useContext(UIStateContext);
   if (!context) {
-    throw new Error('useUIState must be used within a UIStateProvider');
+    throw new Error("useUIState must be used within a UIStateProvider");
   }
   return context;
 };

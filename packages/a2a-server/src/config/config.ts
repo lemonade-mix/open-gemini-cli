@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import * as fs from 'node:fs';
-import * as path from 'node:path';
-import { homedir } from 'node:os';
-import * as dotenv from 'dotenv';
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { homedir } from "node:os";
+import * as dotenv from "dotenv";
 
-import type { TelemetryTarget } from '@google/gemini-cli-core';
+import type { TelemetryTarget } from "@google/kaidex-cli-core";
 import {
   AuthType,
   Config,
@@ -18,38 +18,38 @@ import {
   ApprovalMode,
   loadServerHierarchicalMemory,
   GEMINI_CONFIG_DIR,
-  DEFAULT_GEMINI_EMBEDDING_MODEL,
-  DEFAULT_GEMINI_MODEL,
-  type GeminiCLIExtension,
-} from '@google/gemini-cli-core';
+  DEFAULT_KAIDEX_EMBEDDING_MODEL,
+  DEFAULT_KAIDEX_MODEL,
+} from "@google/kaidex-cli-core";
 
-import { logger } from '../utils/logger.js';
-import type { Settings } from './settings.js';
-import { type AgentSettings, CoderAgentEvent } from '../types.js';
+import { logger } from "../utils/logger.js";
+import type { Settings } from "./settings.js";
+import type { Extension } from "./extension.js";
+import { type AgentSettings, CoderAgentEvent } from "../types.js";
 
 export async function loadConfig(
   settings: Settings,
-  extensions: GeminiCLIExtension[],
+  extensions: Extension[],
   taskId: string,
 ): Promise<Config> {
   const mcpServers = mergeMcpServers(settings, extensions);
   const workspaceDir = process.cwd();
-  const adcFilePath = process.env['GOOGLE_APPLICATION_CREDENTIALS'];
+  const adcFilePath = process.env["GOOGLE_APPLICATION_CREDENTIALS"];
 
   const configParams: ConfigParameters = {
     sessionId: taskId,
-    model: DEFAULT_GEMINI_MODEL,
-    embeddingModel: DEFAULT_GEMINI_EMBEDDING_MODEL,
+    model: DEFAULT_KAIDEX_MODEL,
+    embeddingModel: DEFAULT_KAIDEX_EMBEDDING_MODEL,
     sandbox: undefined, // Sandbox might not be relevant for a server-side agent
     targetDir: workspaceDir, // Or a specific directory the agent operates on
-    debugMode: process.env['DEBUG'] === 'true' || false,
-    question: '', // Not used in server mode directly like CLI
+    debugMode: process.env["DEBUG"] === "true" || false,
+    question: "", // Not used in server mode directly like CLI
     fullContext: false, // Server might have different context needs
     coreTools: settings.coreTools || undefined,
     excludeTools: settings.excludeTools || undefined,
     showMemoryUsage: settings.showMemoryUsage || false,
     approvalMode:
-      process.env['GEMINI_YOLO_MODE'] === 'true'
+      process.env["GEMINI_YOLO_MODE"] === "true"
         ? ApprovalMode.YOLO
         : ApprovalMode.DEFAULT,
     mcpServers,
@@ -58,7 +58,7 @@ export async function loadConfig(
       enabled: settings.telemetry?.enabled,
       target: settings.telemetry?.target as TelemetryTarget,
       otlpEndpoint:
-        process.env['OTEL_EXPORTER_OTLP_ENDPOINT'] ??
+        process.env["OTEL_EXPORTER_OTLP_ENDPOINT"] ??
         settings.telemetry?.otlpEndpoint,
       logPrompts: settings.telemetry?.logPrompts,
     },
@@ -69,7 +69,6 @@ export async function loadConfig(
         settings.fileFiltering?.enableRecursiveFileSearch,
     },
     ideMode: false,
-    folderTrust: settings.folderTrust === true,
   };
 
   const fileService = new FileDiscoveryService(workspaceDir);
@@ -80,7 +79,7 @@ export async function loadConfig(
     false,
     fileService,
     extensionContextFilePaths,
-    settings.folderTrust === true,
+    true, /// TODO: Wire up folder trust logic here.
   );
   configParams.userMemory = memoryContent;
   configParams.geminiMdFileCount = fileCount;
@@ -90,8 +89,8 @@ export async function loadConfig(
   // Needed to initialize ToolRegistry, and git checkpointing if enabled
   await config.initialize();
 
-  if (process.env['USE_CCPA']) {
-    logger.info('[Config] Using CCPA Auth:');
+  if (process.env["USE_CCPA"]) {
+    logger.info("[Config] Using CCPA Auth:");
     try {
       if (adcFilePath) {
         path.resolve(adcFilePath);
@@ -103,36 +102,34 @@ export async function loadConfig(
     }
     await config.refreshAuth(AuthType.LOGIN_WITH_GOOGLE);
     logger.info(
-      `[Config] GOOGLE_CLOUD_PROJECT: ${process.env['GOOGLE_CLOUD_PROJECT']}`,
+      `[Config] GOOGLE_CLOUD_PROJECT: ${process.env["GOOGLE_CLOUD_PROJECT"]}`,
     );
-  } else if (process.env['GEMINI_API_KEY']) {
-    logger.info('[Config] Using Gemini API Key');
+  } else if (process.env["GEMINI_API_KEY"]) {
+    logger.info("[Config] Using KaiDex API Key");
     await config.refreshAuth(AuthType.USE_GEMINI);
   } else {
-    const errorMessage =
-      '[Config] Unable to set GeneratorConfig. Please provide a GEMINI_API_KEY or set USE_CCPA.';
-    logger.error(errorMessage);
-    throw new Error(errorMessage);
+    logger.error(
+      `[Config] Unable to set GeneratorConfig. Please provide a GEMINI_API_KEY or set USE_CCPA.`,
+    );
   }
 
   return config;
 }
 
-export function mergeMcpServers(
-  settings: Settings,
-  extensions: GeminiCLIExtension[],
-) {
+export function mergeMcpServers(settings: Settings, extensions: Extension[]) {
   const mcpServers = { ...(settings.mcpServers || {}) };
   for (const extension of extensions) {
-    Object.entries(extension.mcpServers || {}).forEach(([key, server]) => {
-      if (mcpServers[key]) {
-        console.warn(
-          `Skipping extension MCP config for server with key "${key}" as it already exists.`,
-        );
-        return;
-      }
-      mcpServers[key] = server;
-    });
+    Object.entries(extension.config.mcpServers || {}).forEach(
+      ([key, server]) => {
+        if (mcpServers[key]) {
+          console.warn(
+            `Skipping extension MCP config for server with key "${key}" as it already exists.`,
+          );
+          return;
+        }
+        mcpServers[key] = server;
+      },
+    );
   }
   return mcpServers;
 }
@@ -140,7 +137,7 @@ export function mergeMcpServers(
 export function setTargetDir(agentSettings: AgentSettings | undefined): string {
   const originalCWD = process.cwd();
   const targetDir =
-    process.env['CODER_AGENT_WORKSPACE_PATH'] ??
+    process.env["CODER_AGENT_WORKSPACE_PATH"] ??
     (agentSettings?.kind === CoderAgentEvent.StateAgentSettingsEvent
       ? agentSettings.workspacePath
       : undefined);
@@ -176,11 +173,15 @@ function findEnvFile(startDir: string): string | null {
   let currentDir = path.resolve(startDir);
   while (true) {
     // prefer gemini-specific .env under GEMINI_DIR
-    const geminiEnvPath = path.join(currentDir, GEMINI_CONFIG_DIR, '.env');
+    const geminiEnvPath = path.join(currentDir, GEMINI_CONFIG_DIR, ".env");
     if (fs.existsSync(geminiEnvPath)) {
       return geminiEnvPath;
     }
-    const envPath = path.join(currentDir, '.env');
+    const privateEnvPath = path.join(currentDir, "PRIVATE", ".env");
+    if (fs.existsSync(privateEnvPath)) {
+      return privateEnvPath;
+    }
+    const envPath = path.join(currentDir, ".env");
     if (fs.existsSync(envPath)) {
       return envPath;
     }
@@ -190,12 +191,16 @@ function findEnvFile(startDir: string): string | null {
       const homeGeminiEnvPath = path.join(
         process.cwd(),
         GEMINI_CONFIG_DIR,
-        '.env',
+        ".env",
       );
       if (fs.existsSync(homeGeminiEnvPath)) {
         return homeGeminiEnvPath;
       }
-      const homeEnvPath = path.join(homedir(), '.env');
+      const homePrivateEnvPath = path.join(homedir(), "PRIVATE", ".env");
+      if (fs.existsSync(homePrivateEnvPath)) {
+        return homePrivateEnvPath;
+      }
+      const homeEnvPath = path.join(homedir(), ".env");
       if (fs.existsSync(homeEnvPath)) {
         return homeEnvPath;
       }

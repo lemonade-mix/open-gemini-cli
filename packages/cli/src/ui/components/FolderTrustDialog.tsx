@@ -4,21 +4,19 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Box, Text } from 'ink';
-import type React from 'react';
-import { useEffect } from 'react';
-import { theme } from '../semantic-colors.js';
-import type { RadioSelectItem } from './shared/RadioButtonSelect.js';
-import { RadioButtonSelect } from './shared/RadioButtonSelect.js';
-import { useKeypress } from '../hooks/useKeypress.js';
-import * as process from 'node:process';
-import * as path from 'node:path';
-import { relaunchApp } from '../../utils/processUtils.js';
+import { Box, Text } from "ink";
+import type React from "react";
+import { Colors } from "../colors.js";
+import type { RadioSelectItem } from "./shared/RadioButtonSelect.js";
+import { RadioButtonSelect } from "./shared/RadioButtonSelect.js";
+import { useKeypress } from "../hooks/useKeypress.js";
+import * as process from "node:process";
+import * as path from "node:path";
 
 export enum FolderTrustChoice {
-  TRUST_FOLDER = 'trust_folder',
-  TRUST_PARENT = 'trust_parent',
-  DO_NOT_TRUST = 'do_not_trust',
+  TRUST_FOLDER = "trust_folder",
+  TRUST_PARENT = "trust_parent",
+  DO_NOT_TRUST = "do_not_trust",
 }
 
 interface FolderTrustDialogProps {
@@ -30,44 +28,38 @@ export const FolderTrustDialog: React.FC<FolderTrustDialogProps> = ({
   onSelect,
   isRestarting,
 }) => {
-  useEffect(() => {
-    const doRelaunch = async () => {
-      if (isRestarting) {
-        setTimeout(async () => {
-          await relaunchApp();
-        }, 250);
-      }
-    };
-    doRelaunch();
-  }, [isRestarting]);
-
   useKeypress(
     (key) => {
-      if (key.name === 'escape') {
+      if (key.name === "escape") {
         onSelect(FolderTrustChoice.DO_NOT_TRUST);
       }
     },
     { isActive: !isRestarting },
   );
 
-  const dirName = path.basename(process.cwd());
+  useKeypress(
+    (key) => {
+      if (key.name === "r") {
+        process.exit(0);
+      }
+    },
+    { isActive: !!isRestarting },
+  );
+
   const parentFolder = path.basename(path.dirname(process.cwd()));
 
   const options: Array<RadioSelectItem<FolderTrustChoice>> = [
     {
-      label: `Trust folder (${dirName})`,
+      label: "Trust folder",
       value: FolderTrustChoice.TRUST_FOLDER,
-      key: `Trust folder (${dirName})`,
     },
     {
       label: `Trust parent folder (${parentFolder})`,
       value: FolderTrustChoice.TRUST_PARENT,
-      key: `Trust parent folder (${parentFolder})`,
     },
     {
       label: "Don't trust (esc)",
       value: FolderTrustChoice.DO_NOT_TRUST,
-      key: "Don't trust (esc)",
     },
   ];
 
@@ -76,17 +68,15 @@ export const FolderTrustDialog: React.FC<FolderTrustDialogProps> = ({
       <Box
         flexDirection="column"
         borderStyle="round"
-        borderColor={theme.status.warning}
+        borderColor={Colors.AccentYellow}
         padding={1}
         width="100%"
         marginLeft={1}
       >
         <Box flexDirection="column" marginBottom={1}>
-          <Text bold color={theme.text.primary}>
-            Do you trust this folder?
-          </Text>
-          <Text color={theme.text.primary}>
-            Trusting a folder allows Gemini to execute commands it suggests.
+          <Text bold>Do you trust this folder?</Text>
+          <Text>
+            Trusting a folder allows KaiDex to execute commands it suggests.
             This is a security feature to prevent accidental execution in
             untrusted directories.
           </Text>
@@ -100,8 +90,9 @@ export const FolderTrustDialog: React.FC<FolderTrustDialogProps> = ({
       </Box>
       {isRestarting && (
         <Box marginLeft={1} marginTop={1}>
-          <Text color={theme.status.warning}>
-            Gemini CLI is restarting to apply the trust changes...
+          <Text color={Colors.AccentYellow}>
+            To see changes, KaiDex CLI must be restarted. Press r to exit and
+            apply changes now.
           </Text>
         </Box>
       )}

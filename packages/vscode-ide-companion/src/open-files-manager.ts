@@ -4,11 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import * as vscode from 'vscode';
-import type {
-  File,
-  IdeContext,
-} from '@google/gemini-cli-core/src/ide/types.js';
+import * as vscode from "vscode";
+import type { File, IdeContext } from "@google/kaidex-cli-core";
 
 export const MAX_FILES = 10;
 const MAX_SELECTED_TEXT_LENGTH = 16384; // 16 KiB limit
@@ -89,7 +86,7 @@ export class OpenFilesManager {
   }
 
   private isFileUri(uri: vscode.Uri): boolean {
-    return uri.scheme === 'file';
+    return uri.scheme === "file";
   }
 
   private addOrMoveToFront(editor: vscode.TextEditor) {
@@ -157,7 +154,7 @@ export class OpenFilesManager {
       editor.document.getText(editor.selection) || undefined;
     if (selectedText && selectedText.length > MAX_SELECTED_TEXT_LENGTH) {
       selectedText =
-        selectedText.substring(0, MAX_SELECTED_TEXT_LENGTH) + '... [TRUNCATED]';
+        selectedText.substring(0, MAX_SELECTED_TEXT_LENGTH) + "... [TRUNCATED]";
     }
     file.selectedText = selectedText;
   }

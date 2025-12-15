@@ -4,22 +4,22 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { reportError } from '../utils/errorReporting.js';
-import { ToolRegistry } from '../tools/tool-registry.js';
-import type { AnyDeclarativeTool } from '../tools/tools.js';
-import type { Config } from '../config/config.js';
-import type { ToolCallRequestInfo } from './turn.js';
-import { executeToolCall } from './nonInteractiveToolExecutor.js';
-import { getEnvironmentContext } from '../utils/environmentContext.js';
+import { reportError } from "../utils/errorReporting.js";
+import { ToolRegistry } from "../tools/tool-registry.js";
+import type { AnyDeclarativeTool } from "../tools/tools.js";
+import type { Config } from "../config/config.js";
+import type { ToolCallRequestInfo } from "./turn.js";
+import { executeToolCall } from "./nonInteractiveToolExecutor.js";
+import { getEnvironmentContext } from "../utils/environmentContext.js";
 import type {
   Content,
   Part,
   FunctionCall,
   GenerateContentConfig,
   FunctionDeclaration,
-} from '@google/genai';
-import { Type } from '@google/genai';
-import { GeminiChat, StreamEventType } from './geminiChat.js';
+} from "./contentGenerator.js";
+import { Type } from "./contentGenerator.js";
+import { KaiDexChat, StreamEventType } from "./kaidexChat.js";
 
 /**
  * @fileoverview Defines the configuration interfaces for a subagent.
@@ -36,19 +36,19 @@ export enum SubagentTerminateMode {
   /**
    * Indicates that the subagent's execution terminated due to an unrecoverable error.
    */
-  ERROR = 'ERROR',
+  ERROR = "ERROR",
   /**
    * Indicates that the subagent's execution terminated because it exceeded the maximum allowed working time.
    */
-  TIMEOUT = 'TIMEOUT',
+  TIMEOUT = "TIMEOUT",
   /**
    * Indicates that the subagent's execution successfully completed all its defined goals.
    */
-  GOAL = 'GOAL',
+  GOAL = "GOAL",
   /**
    * Indicates that the subagent's execution terminated because it exceeded the maximum number of turns.
    */
-  MAX_TURNS = 'MAX_TURNS',
+  MAX_TURNS = "MAX_TURNS",
 }
 
 /**
@@ -220,7 +220,7 @@ function templateString(template: string, context: ContextState): string {
   if (missingKeys.length > 0) {
     throw new Error(
       `Missing context values for the following keys: ${missingKeys.join(
-        ', ',
+        ", ",
       )}`,
     );
   }
@@ -297,7 +297,7 @@ export class SubAgentScope {
     const subagentToolRegistry = new ToolRegistry(runtimeContext);
     if (options.toolConfig) {
       for (const tool of options.toolConfig.tools) {
-        if (typeof tool === 'string') {
+        if (typeof tool === "string") {
           const toolFromRegistry = (
             await runtimeContext.getToolRegistry()
           ).getTool(tool);
@@ -305,9 +305,9 @@ export class SubAgentScope {
             subagentToolRegistry.registerTool(toolFromRegistry);
           }
         } else if (
-          typeof tool === 'object' &&
-          'name' in tool &&
-          'build' in tool
+          typeof tool === "object" &&
+          "name" in tool &&
+          "build" in tool
         ) {
           subagentToolRegistry.registerTool(tool);
         } else {
@@ -382,18 +382,20 @@ export class SubAgentScope {
       if (this.toolConfig) {
         const toolsToLoad: string[] = [];
         for (const tool of this.toolConfig.tools) {
-          if (typeof tool === 'string') {
+          if (typeof tool === "string") {
             toolsToLoad.push(tool);
-          } else if (typeof tool === 'object' && 'schema' in tool) {
+          } else if (typeof tool === "object" && "schema" in tool) {
             // This is a tool instance with a schema property
-            toolsList.push(tool.schema);
+            toolsList.push(tool.schema as any);
           } else {
             // This is a raw FunctionDeclaration
-            toolsList.push(tool);
+            toolsList.push(tool as any);
           }
         }
         toolsList.push(
-          ...this.toolRegistry.getFunctionDeclarationsFiltered(toolsToLoad),
+          ...(this.toolRegistry.getFunctionDeclarationsFiltered(
+            toolsToLoad,
+          ) as any),
         );
       }
       // Add local scope functions if outputs are expected.
@@ -402,7 +404,7 @@ export class SubAgentScope {
       }
 
       let currentMessages: Content[] = [
-        { role: 'user', parts: [{ text: 'Get Started!' }] },
+        { role: "user", parts: [{ text: "Get Started!" }] },
       ];
 
       while (true) {
@@ -430,17 +432,16 @@ export class SubAgentScope {
         };
 
         const responseStream = await chat.sendMessageStream(
-          this.modelConfig.model,
-          messageParams,
+          messageParams as any,
           promptId,
         );
 
         const functionCalls: FunctionCall[] = [];
-        let textResponse = '';
+        let textResponse = "";
         for await (const resp of responseStream) {
           if (abortController.signal.aborted) return;
           if (resp.type === StreamEventType.CHUNK && resp.value.functionCalls) {
-            functionCalls.push(...resp.value.functionCalls);
+            functionCalls.push(...(resp.value.functionCalls as any));
           }
           if (resp.type === StreamEventType.CHUNK && resp.value.text) {
             textResponse += resp.value.text;
@@ -501,21 +502,21 @@ export class SubAgentScope {
           }
 
           const nudgeMessage = `You have stopped calling tools but have not emitted the following required variables: ${remainingVars.join(
-            ', ',
+            ", ",
           )}. Please use the 'self.emitvalue' tool to emit them now, or continue working if necessary.`;
 
           console.debug(nudgeMessage);
 
           currentMessages = [
             {
-              role: 'user',
+              role: "user",
               parts: [{ text: nudgeMessage }],
             },
           ];
         }
       }
     } catch (error) {
-      console.error('Error during subagent execution:', error);
+      console.error("Error during subagent execution:", error);
       this.output.terminate_reason = SubagentTerminateMode.ERROR;
       throw error;
     }
@@ -556,7 +557,8 @@ export class SubAgentScope {
 `,
         );
       }
-      const callId = functionCall.id ?? `${functionCall.name}-${Date.now()}`;
+      const callId =
+        (functionCall as any).id ?? `${functionCall.name}-${Date.now()}`;
       const requestInfo: ToolCallRequestInfo = {
         callId,
         name: functionCall.name as string,
@@ -568,9 +570,9 @@ export class SubAgentScope {
       let toolResponse;
 
       // Handle scope-local tools first.
-      if (functionCall.name === 'self.emitvalue') {
-        const valName = String(requestInfo.args['emit_variable_name']);
-        const valVal = String(requestInfo.args['emit_variable_value']);
+      if (functionCall.name === "self.emitvalue") {
+        const valName = String(requestInfo.args["emit_variable_name"]);
+        const valVal = String(requestInfo.args["emit_variable_value"]);
         this.output.emitted_vars[valName] = valVal;
 
         toolResponse = {
@@ -600,29 +602,29 @@ export class SubAgentScope {
     // If all tool calls failed, inform the model so it can re-evaluate.
     if (functionCalls.length > 0 && toolResponseParts.length === 0) {
       toolResponseParts.push({
-        text: 'All tool calls failed. Please analyze the errors and try an alternative approach.',
+        text: "All tool calls failed. Please analyze the errors and try an alternative approach.",
       });
     }
 
-    return [{ role: 'user', parts: toolResponseParts }];
+    return [{ role: "user", parts: toolResponseParts }];
   }
 
   private async createChatObject(context: ContextState) {
     if (!this.promptConfig.systemPrompt && !this.promptConfig.initialMessages) {
       throw new Error(
-        'PromptConfig must have either `systemPrompt` or `initialMessages` defined.',
+        "PromptConfig must have either `systemPrompt` or `initialMessages` defined.",
       );
     }
     if (this.promptConfig.systemPrompt && this.promptConfig.initialMessages) {
       throw new Error(
-        'PromptConfig cannot have both `systemPrompt` and `initialMessages` defined.',
+        "PromptConfig cannot have both `systemPrompt` and `initialMessages` defined.",
       );
     }
 
     const envParts = await getEnvironmentContext(this.runtimeContext);
     const envHistory: Content[] = [
-      { role: 'user', parts: envParts },
-      { role: 'model', parts: [{ text: 'Got it. Thanks for the context!' }] },
+      { role: "user", parts: envParts },
+      { role: "model", parts: [{ text: "Got it. Thanks for the context!" }] },
     ];
 
     const start_history = [
@@ -646,17 +648,17 @@ export class SubAgentScope {
 
       this.runtimeContext.setModel(this.modelConfig.model);
 
-      return new GeminiChat(
+      return new KaiDexChat(
         this.runtimeContext,
-        generationConfig,
-        start_history,
+        generationConfig as any,
+        start_history as any,
       );
     } catch (error) {
       await reportError(
         error,
-        'Error initializing Gemini chat session.',
+        "Error initializing KaiDex chat session.",
         start_history,
-        'startChat',
+        "startChat",
       );
       // The calling function will handle the undefined return.
       return undefined;
@@ -670,23 +672,23 @@ export class SubAgentScope {
    */
   private getScopeLocalFuncDefs() {
     const emitValueTool: FunctionDeclaration = {
-      name: 'self.emitvalue',
+      name: "self.emitvalue",
       description: `* This tool emits A SINGLE return value from this execution, such that it can be collected and presented to the calling function.
         * You can only emit ONE VALUE each time you call this tool. You are expected to call this tool MULTIPLE TIMES if you have MULTIPLE OUTPUTS.`,
       parameters: {
         type: Type.OBJECT,
         properties: {
           emit_variable_name: {
-            description: 'This is the name of the variable to be returned.',
+            description: "This is the name of the variable to be returned.",
             type: Type.STRING,
           },
           emit_variable_value: {
             description:
-              'This is the _value_ to be returned for this variable.',
+              "This is the _value_ to be returned for this variable.",
             type: Type.STRING,
           },
         },
-        required: ['emit_variable_name', 'emit_variable_value'],
+        required: ["emit_variable_name", "emit_variable_value"],
       },
     };
 
@@ -703,7 +705,7 @@ export class SubAgentScope {
   private buildChatSystemPrompt(context: ContextState): string {
     if (!this.promptConfig.systemPrompt) {
       // This should ideally be caught in createChatObject, but serves as a safeguard.
-      return '';
+      return "";
     }
 
     let finalPrompt = templateString(this.promptConfig.systemPrompt, context);
@@ -711,7 +713,7 @@ export class SubAgentScope {
     // Add instructions for emitting variables if needed.
     if (this.outputConfig && this.outputConfig.outputs) {
       let outputInstructions =
-        '\n\nAfter you have achieved all other goals, you MUST emit the required output variables. For each expected output, make one final call to the `self.emitvalue` tool.';
+        "\n\nAfter you have achieved all other goals, you MUST emit the required output variables. For each expected output, make one final call to the `self.emitvalue` tool.";
 
       for (const [key, value] of Object.entries(this.outputConfig.outputs)) {
         outputInstructions += `\n* Use 'self.emitvalue' to emit the '${key}' key, with a value described as: '${value}'`;

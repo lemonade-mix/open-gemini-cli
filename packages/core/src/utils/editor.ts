@@ -4,28 +4,28 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { execSync, spawn, spawnSync } from 'node:child_process';
+import { execSync, spawn } from "node:child_process";
 
 export type EditorType =
-  | 'vscode'
-  | 'vscodium'
-  | 'windsurf'
-  | 'cursor'
-  | 'vim'
-  | 'neovim'
-  | 'zed'
-  | 'emacs';
+  | "vscode"
+  | "vscodium"
+  | "windsurf"
+  | "cursor"
+  | "vim"
+  | "neovim"
+  | "zed"
+  | "emacs";
 
 function isValidEditorType(editor: string): editor is EditorType {
   return [
-    'vscode',
-    'vscodium',
-    'windsurf',
-    'cursor',
-    'vim',
-    'neovim',
-    'zed',
-    'emacs',
+    "vscode",
+    "vscodium",
+    "windsurf",
+    "cursor",
+    "vim",
+    "neovim",
+    "zed",
+    "emacs",
   ].includes(editor);
 }
 
@@ -37,8 +37,8 @@ interface DiffCommand {
 function commandExists(cmd: string): boolean {
   try {
     execSync(
-      process.platform === 'win32' ? `where.exe ${cmd}` : `command -v ${cmd}`,
-      { stdio: 'ignore' },
+      process.platform === "win32" ? `where.exe ${cmd}` : `command -v ${cmd}`,
+      { stdio: "ignore" },
     );
     return true;
   } catch {
@@ -54,26 +54,26 @@ const editorCommands: Record<
   EditorType,
   { win32: string[]; default: string[] }
 > = {
-  vscode: { win32: ['code.cmd'], default: ['code'] },
-  vscodium: { win32: ['codium.cmd'], default: ['codium'] },
-  windsurf: { win32: ['windsurf'], default: ['windsurf'] },
-  cursor: { win32: ['cursor'], default: ['cursor'] },
-  vim: { win32: ['vim'], default: ['vim'] },
-  neovim: { win32: ['nvim'], default: ['nvim'] },
-  zed: { win32: ['zed'], default: ['zed', 'zeditor'] },
-  emacs: { win32: ['emacs.exe'], default: ['emacs'] },
+  vscode: { win32: ["code.cmd"], default: ["code"] },
+  vscodium: { win32: ["codium.cmd"], default: ["codium"] },
+  windsurf: { win32: ["windsurf"], default: ["windsurf"] },
+  cursor: { win32: ["cursor"], default: ["cursor"] },
+  vim: { win32: ["vim"], default: ["vim"] },
+  neovim: { win32: ["nvim"], default: ["nvim"] },
+  zed: { win32: ["zed"], default: ["zed", "zeditor"] },
+  emacs: { win32: ["emacs.exe"], default: ["emacs"] },
 };
 
 export function checkHasEditorType(editor: EditorType): boolean {
   const commandConfig = editorCommands[editor];
   const commands =
-    process.platform === 'win32' ? commandConfig.win32 : commandConfig.default;
+    process.platform === "win32" ? commandConfig.win32 : commandConfig.default;
   return commands.some((cmd) => commandExists(cmd));
 }
 
 export function allowEditorTypeInSandbox(editor: EditorType): boolean {
-  const notUsingSandbox = !process.env['SANDBOX'];
-  if (['vscode', 'vscodium', 'windsurf', 'cursor', 'zed'].includes(editor)) {
+  const notUsingSandbox = !process.env["SANDBOX"];
+  if (["vscode", "vscodium", "windsurf", "cursor", "zed"].includes(editor)) {
     return notUsingSandbox;
   }
   // For terminal-based editors like vim and emacs, allow in sandbox.
@@ -104,51 +104,51 @@ export function getDiffCommand(
   }
   const commandConfig = editorCommands[editor];
   const commands =
-    process.platform === 'win32' ? commandConfig.win32 : commandConfig.default;
+    process.platform === "win32" ? commandConfig.win32 : commandConfig.default;
   const command =
     commands.slice(0, -1).find((cmd) => commandExists(cmd)) ||
     commands[commands.length - 1];
 
   switch (editor) {
-    case 'vscode':
-    case 'vscodium':
-    case 'windsurf':
-    case 'cursor':
-    case 'zed':
-      return { command, args: ['--wait', '--diff', oldPath, newPath] };
-    case 'vim':
-    case 'neovim':
+    case "vscode":
+    case "vscodium":
+    case "windsurf":
+    case "cursor":
+    case "zed":
+      return { command, args: ["--wait", "--diff", oldPath, newPath] };
+    case "vim":
+    case "neovim":
       return {
         command,
         args: [
-          '-d',
+          "-d",
           // skip viminfo file to avoid E138 errors
-          '-i',
-          'NONE',
+          "-i",
+          "NONE",
           // make the left window read-only and the right window editable
-          '-c',
-          'wincmd h | set readonly | wincmd l',
+          "-c",
+          "wincmd h | set readonly | wincmd l",
           // set up colors for diffs
-          '-c',
-          'highlight DiffAdd cterm=bold ctermbg=22 guibg=#005f00 | highlight DiffChange cterm=bold ctermbg=24 guibg=#005f87 | highlight DiffText ctermbg=21 guibg=#0000af | highlight DiffDelete ctermbg=52 guibg=#5f0000',
+          "-c",
+          "highlight DiffAdd cterm=bold ctermbg=22 guibg=#005f00 | highlight DiffChange cterm=bold ctermbg=24 guibg=#005f87 | highlight DiffText ctermbg=21 guibg=#0000af | highlight DiffDelete ctermbg=52 guibg=#5f0000",
           // Show helpful messages
-          '-c',
-          'set showtabline=2 | set tabline=[Instructions]\\ :wqa(save\\ &\\ quit)\\ \\|\\ i/esc(toggle\\ edit\\ mode)',
-          '-c',
-          'wincmd h | setlocal statusline=OLD\\ FILE',
-          '-c',
-          'wincmd l | setlocal statusline=%#StatusBold#NEW\\ FILE\\ :wqa(save\\ &\\ quit)\\ \\|\\ i/esc(toggle\\ edit\\ mode)',
+          "-c",
+          "set showtabline=2 | set tabline=[Instructions]\\ :wqa(save\\ &\\ quit)\\ \\|\\ i/esc(toggle\\ edit\\ mode)",
+          "-c",
+          "wincmd h | setlocal statusline=OLD\\ FILE",
+          "-c",
+          "wincmd l | setlocal statusline=%#StatusBold#NEW\\ FILE\\ :wqa(save\\ &\\ quit)\\ \\|\\ i/esc(toggle\\ edit\\ mode)",
           // Auto close all windows when one is closed
-          '-c',
-          'autocmd BufWritePost * wqa',
+          "-c",
+          "autocmd BufWritePost * wqa",
           oldPath,
           newPath,
         ],
       };
-    case 'emacs':
+    case "emacs":
       return {
-        command: 'emacs',
-        args: ['--eval', `(ediff "${oldPath}" "${newPath}")`],
+        command: "emacs",
+        args: ["--eval", `(ediff "${oldPath}" "${newPath}")`],
       };
     default:
       return null;
@@ -168,50 +168,62 @@ export async function openDiff(
 ): Promise<void> {
   const diffCommand = getDiffCommand(oldPath, newPath, editor);
   if (!diffCommand) {
-    console.error('No diff tool available. Install a supported editor.');
+    console.error("No diff tool available. Install a supported editor.");
     return;
   }
 
   try {
-    const isTerminalEditor = ['vim', 'emacs', 'neovim'].includes(editor);
+    switch (editor) {
+      case "vscode":
+      case "vscodium":
+      case "windsurf":
+      case "cursor":
+      case "zed":
+        // Use spawn for GUI-based editors to avoid blocking the entire process
+        return new Promise((resolve, reject) => {
+          const childProcess = spawn(diffCommand.command, diffCommand.args, {
+            stdio: "inherit",
+            shell: true,
+          });
 
-    if (isTerminalEditor) {
-      try {
-        const result = spawnSync(diffCommand.command, diffCommand.args, {
-          stdio: 'inherit',
+          childProcess.on("close", (code) => {
+            if (code === 0) {
+              resolve();
+            } else {
+              reject(new Error(`${editor} exited with code ${code}`));
+            }
+          });
+
+          childProcess.on("error", (error) => {
+            reject(error);
+          });
         });
-        if (result.error) {
-          throw result.error;
+
+      case "vim":
+      case "emacs":
+      case "neovim": {
+        // Use execSync for terminal-based editors
+        const command =
+          process.platform === "win32"
+            ? `${diffCommand.command} ${diffCommand.args.join(" ")}`
+            : `${diffCommand.command} ${diffCommand.args.map((arg) => `"${arg}"`).join(" ")}`;
+        try {
+          execSync(command, {
+            stdio: "inherit",
+            encoding: "utf8",
+          });
+        } catch (e) {
+          console.error("Error in onEditorClose callback:", e);
+        } finally {
+          onEditorClose();
         }
-        if (result.status !== 0) {
-          throw new Error(`${editor} exited with code ${result.status}`);
-        }
-      } finally {
-        onEditorClose();
+        break;
       }
-      return;
+
+      default:
+        throw new Error(`Unsupported editor: ${editor}`);
     }
-
-    return new Promise<void>((resolve, reject) => {
-      const childProcess = spawn(diffCommand.command, diffCommand.args, {
-        stdio: 'inherit',
-        shell: process.platform === 'win32',
-      });
-
-      childProcess.on('close', (code) => {
-        if (code === 0) {
-          resolve();
-        } else {
-          reject(new Error(`${editor} exited with code ${code}`));
-        }
-      });
-
-      childProcess.on('error', (error) => {
-        reject(error);
-      });
-    });
   } catch (error) {
     console.error(error);
-    throw error;
   }
 }

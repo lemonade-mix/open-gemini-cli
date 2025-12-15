@@ -4,62 +4,55 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import * as fs from 'node:fs';
-import * as path from 'node:path';
-import { homedir } from 'node:os';
-import yargs from 'yargs/yargs';
-import { hideBin } from 'yargs/helpers';
-import process from 'node:process';
-import { mcpCommand } from '../commands/mcp.js';
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { homedir } from "node:os";
+import yargs from "yargs/yargs";
+import { hideBin } from "yargs/helpers";
+import process from "node:process";
+import { mcpCommand } from "../commands/mcp.js";
 import type {
+  TelemetryTarget,
   FileFilteringOptions,
   MCPServerConfig,
-  OutputFormat,
-  GeminiCLIExtension,
-} from '@google/gemini-cli-core';
-import { extensionsCommand } from '../commands/extensions.js';
+} from "@google/kaidex-cli-core";
+import { extensionsCommand } from "../commands/extensions.js";
 import {
   Config,
   loadServerHierarchicalMemory,
-  setGeminiMdFilename as setServerGeminiMdFilename,
-  getCurrentGeminiMdFilename,
+  setGeminiMdFilename as setServerKaiDexMdFilename,
+  getCurrentGeminiMdFilename as getCurrentKaiDexMdFilename,
   ApprovalMode,
-  DEFAULT_GEMINI_MODEL,
-  DEFAULT_GEMINI_MODEL_AUTO,
-  DEFAULT_GEMINI_EMBEDDING_MODEL,
+  DEFAULT_KAIDEX_MODEL,
+  DEFAULT_KAIDEX_EMBEDDING_MODEL,
   DEFAULT_MEMORY_FILE_FILTERING_OPTIONS,
   FileDiscoveryService,
   ShellTool,
   EditTool,
-  WRITE_FILE_TOOL_NAME,
-  SHELL_TOOL_NAMES,
-  resolveTelemetrySettings,
-  FatalConfigError,
-} from '@google/gemini-cli-core';
-import type { Settings } from './settings.js';
+  WriteFileTool,
+} from "@google/kaidex-cli-core";
+import type { Settings } from "./settings.js";
 
-import { annotateActiveExtensions } from './extension.js';
-import { getCliVersion } from '../utils/version.js';
-import { loadSandboxConfig } from './sandboxConfig.js';
-import { resolvePath } from '../utils/resolvePath.js';
-import { appEvents } from '../utils/events.js';
+import type { Extension } from "./extension.js";
+import { annotateActiveExtensions } from "./extension.js";
+import { getCliVersion } from "../utils/version.js";
+import { loadSandboxConfig } from "./sandboxConfig.js";
+import { resolvePath } from "../utils/resolvePath.js";
+import { appEvents } from "../utils/events.js";
 
-import { isWorkspaceTrusted } from './trustedFolders.js';
-import { createPolicyEngineConfig } from './policy.js';
-import type { ExtensionEnablementManager } from './extensions/extensionEnablement.js';
+import { isWorkspaceTrusted } from "./trustedFolders.js";
 
 // Simple console logger for now - replace with actual logger if available
 const logger = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  debug: (...args: any[]) => console.debug('[DEBUG]', ...args),
+  debug: (...args: any[]) => console.debug("[DEBUG]", ...args),
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  warn: (...args: any[]) => console.warn('[WARN]', ...args),
+  warn: (...args: any[]) => console.warn("[WARN]", ...args),
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  error: (...args: any[]) => console.error('[ERROR]', ...args),
+  error: (...args: any[]) => console.error("[ERROR]", ...args),
 };
 
 export interface CliArgs {
-  query: string | undefined;
   model: string | undefined;
   sandbox: boolean | string | undefined;
   sandboxImage: string | undefined;
@@ -86,250 +79,225 @@ export interface CliArgs {
   includeDirectories: string[] | undefined;
   screenReader: boolean | undefined;
   useSmartEdit: boolean | undefined;
-  useWriteTodos: boolean | undefined;
-  outputFormat: string | undefined;
+  sessionSummary: string | undefined;
+  promptWords: string[] | undefined;
 }
 
 export async function parseArguments(settings: Settings): Promise<CliArgs> {
-  const rawArgv = hideBin(process.argv);
-  const yargsInstance = yargs(rawArgv)
-    .locale('en')
-    .scriptName('gemini')
+  const yargsInstance = yargs(hideBin(process.argv))
+    .locale("en")
+    .scriptName("gemini")
     .usage(
-      'Usage: gemini [options] [command]\n\nGemini CLI - Launch an interactive CLI, use -p/--prompt for non-interactive mode',
+      "Usage: gemini [options] [command]\n\nGemini CLI - Launch an interactive CLI, use -p/--prompt for non-interactive mode",
     )
-    .option('telemetry', {
-      type: 'boolean',
-      description:
-        'Enable telemetry? This flag specifically controls if telemetry is sent. Other --telemetry-* flags set specific values but do not enable telemetry on their own.',
-    })
-    .option('telemetry-target', {
-      type: 'string',
-      choices: ['local', 'gcp'],
-      description:
-        'Set the telemetry target (local or gcp). Overrides settings files.',
-    })
-    .option('telemetry-otlp-endpoint', {
-      type: 'string',
-      description:
-        'Set the OTLP endpoint for telemetry. Overrides environment variables and settings files.',
-    })
-    .option('telemetry-otlp-protocol', {
-      type: 'string',
-      choices: ['grpc', 'http'],
-      description:
-        'Set the OTLP protocol for telemetry (grpc or http). Overrides settings files.',
-    })
-    .option('telemetry-log-prompts', {
-      type: 'boolean',
-      description:
-        'Enable or disable logging of user prompts for telemetry. Overrides settings files.',
-    })
-    .option('telemetry-outfile', {
-      type: 'string',
-      description: 'Redirect all telemetry output to the specified file.',
-    })
-    .deprecateOption(
-      'telemetry',
-      'Use the "telemetry.enabled" setting in settings.json instead. This flag will be removed in a future version.',
-    )
-    .deprecateOption(
-      'telemetry-target',
-      'Use the "telemetry.target" setting in settings.json instead. This flag will be removed in a future version.',
-    )
-    .deprecateOption(
-      'telemetry-otlp-endpoint',
-      'Use the "telemetry.otlpEndpoint" setting in settings.json instead. This flag will be removed in a future version.',
-    )
-    .deprecateOption(
-      'telemetry-otlp-protocol',
-      'Use the "telemetry.otlpProtocol" setting in settings.json instead. This flag will be removed in a future version.',
-    )
-    .deprecateOption(
-      'telemetry-log-prompts',
-      'Use the "telemetry.logPrompts" setting in settings.json instead. This flag will be removed in a future version.',
-    )
-    .deprecateOption(
-      'telemetry-outfile',
-      'Use the "telemetry.outfile" setting in settings.json instead. This flag will be removed in a future version.',
-    )
-    .option('debug', {
-      alias: 'd',
-      type: 'boolean',
-      description: 'Run in debug mode?',
-      default: false,
-    })
-    .option('proxy', {
-      type: 'string',
-      description:
-        'Proxy for gemini client, like schema://user:password@host:port',
-    })
-    .deprecateOption(
-      'proxy',
-      'Use the "proxy" setting in settings.json instead. This flag will be removed in a future version.',
-    )
-    .command('$0 [query..]', 'Launch Gemini CLI', (yargsInstance) =>
+    .command("$0 [promptWords...]", "Launch KaiDex CLI", (yargsInstance) =>
       yargsInstance
-        .positional('query', {
-          description:
-            'Positional prompt. Defaults to one-shot; use -i/--prompt-interactive for interactive.',
-        })
-        .option('model', {
-          alias: 'm',
-          type: 'string',
+        .option("model", {
+          alias: "m",
+          type: "string",
           description: `Model`,
+          default: process.env["GEMINI_MODEL"],
         })
-        .option('prompt', {
-          alias: 'p',
-          type: 'string',
-          description: 'Prompt. Appended to input on stdin (if any).',
+        .option("prompt", {
+          alias: "p",
+          type: "string",
+          description: "Prompt. Appended to input on stdin (if any).",
         })
-        .option('prompt-interactive', {
-          alias: 'i',
-          type: 'string',
+        .option("prompt-interactive", {
+          alias: "i",
+          type: "string",
           description:
-            'Execute the provided prompt and continue in interactive mode',
+            "Execute the provided prompt and continue in interactive mode",
         })
-        .option('sandbox', {
-          alias: 's',
-          type: 'boolean',
-          description: 'Run in sandbox?',
+        .option("sandbox", {
+          alias: "s",
+          type: "boolean",
+          description: "Run in sandbox?",
         })
-        .option('sandbox-image', {
-          type: 'string',
-          description: 'Sandbox image URI.',
+        .option("sandbox-image", {
+          type: "string",
+          description: "Sandbox image URI.",
         })
-        .option('all-files', {
-          alias: ['a'],
-          type: 'boolean',
-          description: 'Include ALL files in context?',
+        .option("debug", {
+          alias: "d",
+          type: "boolean",
+          description: "Run in debug mode?",
           default: false,
         })
-        .option('show-memory-usage', {
-          type: 'boolean',
-          description: 'Show memory usage in status bar',
+        .option("all-files", {
+          alias: ["a"],
+          type: "boolean",
+          description: "Include ALL files in context?",
           default: false,
         })
-        .option('yolo', {
-          alias: 'y',
-          type: 'boolean',
-          description:
-            'Automatically accept all actions (aka YOLO mode, see https://www.youtube.com/watch?v=xvFZjo5PgG0 for more details)?',
+        .option("show-memory-usage", {
+          type: "boolean",
+          description: "Show memory usage in status bar",
           default: false,
         })
-        .option('approval-mode', {
-          type: 'string',
-          choices: ['default', 'auto_edit', 'yolo'],
+        .option("yolo", {
+          alias: "y",
+          type: "boolean",
           description:
-            'Set the approval mode: default (prompt for approval), auto_edit (auto-approve edit tools), yolo (auto-approve all tools)',
-        })
-        .option('checkpointing', {
-          alias: 'c',
-          type: 'boolean',
-          description: 'Enables checkpointing of file edits',
+            "Automatically accept all actions (aka YOLO mode, see https://www.youtube.com/watch?v=xvFZjo5PgG0 for more details)?",
           default: false,
         })
-        .option('experimental-acp', {
-          type: 'boolean',
-          description: 'Starts the agent in ACP mode',
-        })
-        .option('allowed-mcp-server-names', {
-          type: 'array',
-          string: true,
-          description: 'Allowed MCP server names',
-          coerce: (mcpServerNames: string[]) =>
-            // Handle comma-separated values
-            mcpServerNames.flatMap((mcpServerName) =>
-              mcpServerName.split(',').map((m) => m.trim()),
-            ),
-        })
-        .option('allowed-tools', {
-          type: 'array',
-          string: true,
-          description: 'Tools that are allowed to run without confirmation',
-          coerce: (tools: string[]) =>
-            // Handle comma-separated values
-            tools.flatMap((tool) => tool.split(',').map((t) => t.trim())),
-        })
-        .option('extensions', {
-          alias: 'e',
-          type: 'array',
-          string: true,
-          nargs: 1,
+        .option("approval-mode", {
+          type: "string",
+          choices: ["default", "auto_edit", "yolo"],
           description:
-            'A list of extensions to use. If not provided, all extensions are used.',
-          coerce: (extensions: string[]) =>
-            // Handle comma-separated values
-            extensions.flatMap((extension) =>
-              extension.split(',').map((e) => e.trim()),
-            ),
+            "Set the approval mode: default (prompt for approval), auto_edit (auto-approve edit tools), yolo (auto-approve all tools)",
         })
-        .option('list-extensions', {
-          alias: 'l',
-          type: 'boolean',
-          description: 'List all available extensions and exit.',
+        .option("telemetry", {
+          type: "boolean",
+          description:
+            "Enable telemetry? This flag specifically controls if telemetry is sent. Other --telemetry-* flags set specific values but do not enable telemetry on their own.",
         })
-        .option('include-directories', {
-          type: 'array',
+        .option("telemetry-target", {
+          type: "string",
+          choices: ["local", "gcp"],
+          description:
+            "Set the telemetry target (local or gcp). Overrides settings files.",
+        })
+        .option("telemetry-otlp-endpoint", {
+          type: "string",
+          description:
+            "Set the OTLP endpoint for telemetry. Overrides environment variables and settings files.",
+        })
+        .option("telemetry-otlp-protocol", {
+          type: "string",
+          choices: ["grpc", "http"],
+          description:
+            "Set the OTLP protocol for telemetry (grpc or http). Overrides settings files.",
+        })
+        .option("telemetry-log-prompts", {
+          type: "boolean",
+          description:
+            "Enable or disable logging of user prompts for telemetry. Overrides settings files.",
+        })
+        .option("telemetry-outfile", {
+          type: "string",
+          description: "Redirect all telemetry output to the specified file.",
+        })
+        .option("checkpointing", {
+          alias: "c",
+          type: "boolean",
+          description: "Enables checkpointing of file edits",
+          default: false,
+        })
+        .option("experimental-acp", {
+          type: "boolean",
+          description: "Starts the agent in ACP mode",
+        })
+        .option("allowed-mcp-server-names", {
+          type: "array",
+          string: true,
+          description: "Allowed MCP server names",
+        })
+        .option("allowed-tools", {
+          type: "array",
+          string: true,
+          description: "Tools that are allowed to run without confirmation",
+        })
+        .option("extensions", {
+          alias: "e",
+          type: "array",
           string: true,
           description:
-            'Additional directories to include in the workspace (comma-separated or multiple --include-directories)',
+            "A list of extensions to use. If not provided, all extensions are used.",
+        })
+        .option("list-extensions", {
+          alias: "l",
+          type: "boolean",
+          description: "List all available extensions and exit.",
+        })
+        .option("proxy", {
+          type: "string",
+          description:
+            "Proxy for gemini client, like schema://user:password@host:port",
+        })
+        .option("include-directories", {
+          type: "array",
+          string: true,
+          description:
+            "Additional directories to include in the workspace (comma-separated or multiple --include-directories)",
           coerce: (dirs: string[]) =>
             // Handle comma-separated values
-            dirs.flatMap((dir) => dir.split(',').map((d) => d.trim())),
+            dirs.flatMap((dir) => dir.split(",").map((d) => d.trim())),
         })
-        .option('screen-reader', {
-          type: 'boolean',
-          description: 'Enable screen reader mode for accessibility.',
+        .option("screen-reader", {
+          type: "boolean",
+          description: "Enable screen reader mode for accessibility.",
+          default: false,
         })
-        .option('output-format', {
-          alias: 'o',
-          type: 'string',
-          description: 'The format of the CLI output.',
-          choices: ['text', 'json'],
+        .option("session-summary", {
+          type: "string",
+          description: "File to write session summary to.",
         })
         .deprecateOption(
-          'show-memory-usage',
+          "telemetry",
+          'Use the "telemetry.enabled" setting in settings.json instead. This flag will be removed in a future version.',
+        )
+        .deprecateOption(
+          "telemetry-target",
+          'Use the "telemetry.target" setting in settings.json instead. This flag will be removed in a future version.',
+        )
+        .deprecateOption(
+          "telemetry-otlp-endpoint",
+          'Use the "telemetry.otlpEndpoint" setting in settings.json instead. This flag will be removed in a future version.',
+        )
+        .deprecateOption(
+          "telemetry-otlp-protocol",
+          'Use the "telemetry.otlpProtocol" setting in settings.json instead. This flag will be removed in a future version.',
+        )
+        .deprecateOption(
+          "telemetry-log-prompts",
+          'Use the "telemetry.logPrompts" setting in settings.json instead. This flag will be removed in a future version.',
+        )
+        .deprecateOption(
+          "telemetry-outfile",
+          'Use the "telemetry.outfile" setting in settings.json instead. This flag will be removed in a future version.',
+        )
+        .deprecateOption(
+          "show-memory-usage",
           'Use the "ui.showMemoryUsage" setting in settings.json instead. This flag will be removed in a future version.',
         )
         .deprecateOption(
-          'sandbox-image',
+          "sandbox-image",
           'Use the "tools.sandbox" setting in settings.json instead. This flag will be removed in a future version.',
         )
         .deprecateOption(
-          'checkpointing',
+          "proxy",
+          'Use the "proxy" setting in settings.json instead. This flag will be removed in a future version.',
+        )
+        .deprecateOption(
+          "checkpointing",
           'Use the "general.checkpointing.enabled" setting in settings.json instead. This flag will be removed in a future version.',
         )
         .deprecateOption(
-          'all-files',
-          'Use @ includes in the application instead. This flag will be removed in a future version.',
+          "all-files",
+          "Use @ includes in the application instead. This flag will be removed in a future version.",
         )
         .deprecateOption(
-          'prompt',
-          'Use the positional prompt instead. This flag will be removed in a future version.',
+          "prompt",
+          "Use the positional prompt instead. This flag will be removed in a future version.",
         )
-        // Ensure validation flows through .fail() for clean UX
-        .fail((msg, err, yargs) => {
-          console.error(msg || err?.message || 'Unknown error');
-          yargs.showHelp();
-          process.exit(1);
-        })
         .check((argv) => {
-          // The 'query' positional can be a string (for one arg) or string[] (for multiple).
-          // This guard safely checks if any positional argument was provided.
-          const query = argv['query'] as string | string[] | undefined;
-          const hasPositionalQuery = Array.isArray(query)
-            ? query.length > 0
-            : !!query;
-
-          if (argv['prompt'] && hasPositionalQuery) {
-            return 'Cannot use both a positional prompt and the --prompt (-p) flag together';
+          const promptWords = argv["promptWords"] as string[] | undefined;
+          if (argv["prompt"] && promptWords && promptWords.length > 0) {
+            throw new Error(
+              "Cannot use both a positional prompt and the --prompt (-p) flag together",
+            );
           }
-          if (argv['prompt'] && argv['promptInteractive']) {
-            return 'Cannot use both --prompt (-p) and --prompt-interactive (-i) together';
+          if (argv["prompt"] && argv["promptInteractive"]) {
+            throw new Error(
+              "Cannot use both --prompt (-p) and --prompt-interactive (-i) together",
+            );
           }
-          if (argv.yolo && argv['approvalMode']) {
-            return 'Cannot use both --yolo (-y) and --approval-mode together. Use --approval-mode=yolo instead.';
+          if (argv.yolo && argv["approvalMode"]) {
+            throw new Error(
+              "Cannot use both --yolo (-y) and --approval-mode together. Use --approval-mode=yolo instead.",
+            );
           }
           return true;
         }),
@@ -343,46 +311,24 @@ export async function parseArguments(settings: Settings): Promise<CliArgs> {
 
   yargsInstance
     .version(await getCliVersion()) // This will enable the --version flag based on package.json
-    .alias('v', 'version')
+    .alias("v", "version")
     .help()
-    .alias('h', 'help')
+    .alias("h", "help")
     .strict()
     .demandCommand(0, 0); // Allow base command to run with no subcommands
 
   yargsInstance.wrap(yargsInstance.terminalWidth());
   const result = await yargsInstance.parse();
 
-  // If yargs handled --help/--version it will have exited; nothing to do here.
-
   // Handle case where MCP subcommands are executed - they should exit the process
   // and not return to main CLI logic
   if (
     result._.length > 0 &&
-    (result._[0] === 'mcp' || result._[0] === 'extensions')
+    (result._[0] === "mcp" || result._[0] === "extensions")
   ) {
     // MCP commands handle their own execution and process exit
     process.exit(0);
   }
-
-  // Normalize query args: handle both quoted "@path file" and unquoted @path file
-  const queryArg = (result as { query?: string | string[] | undefined }).query;
-  const q: string | undefined = Array.isArray(queryArg)
-    ? queryArg.join(' ')
-    : queryArg;
-
-  // Route positional args: explicit -i flag -> interactive; else -> one-shot (even for @commands)
-  if (q && !result['prompt']) {
-    const hasExplicitInteractive =
-      result['promptInteractive'] === '' || !!result['promptInteractive'];
-    if (hasExplicitInteractive) {
-      result['promptInteractive'] = q;
-    } else {
-      result['prompt'] = q;
-    }
-  }
-
-  // Keep CliArgs.query as a string for downstream typing
-  (result as Record<string, unknown>)['query'] = q || undefined;
 
   // The import format is now only controlled by settings.memoryImportFormat
   // We no longer accept it as a CLI argument
@@ -400,9 +346,9 @@ export async function loadHierarchicalGeminiMemory(
   settings: Settings,
   extensionContextFilePaths: string[] = [],
   folderTrust: boolean,
-  memoryImportFormat: 'flat' | 'tree' = 'tree',
+  memoryImportFormat: "flat" | "tree" = "tree",
   fileFilteringOptions?: FileFilteringOptions,
-): Promise<{ memoryContent: string; fileCount: number; filePaths: string[] }> {
+): Promise<{ memoryContent: string; fileCount: number }> {
   // FIX: Use real, canonical paths for a reliable comparison to handle symlinks.
   const realCwd = fs.realpathSync(path.resolve(currentWorkingDirectory));
   const realHome = fs.realpathSync(path.resolve(homedir()));
@@ -410,7 +356,7 @@ export async function loadHierarchicalGeminiMemory(
 
   // If it is the home directory, pass an empty string to the core memory
   // function to signal that it should skip the workspace search.
-  const effectiveCwd = isHomeDirectory ? '' : currentWorkingDirectory;
+  const effectiveCwd = isHomeDirectory ? "" : currentWorkingDirectory;
 
   if (debugMode) {
     logger.debug(
@@ -432,66 +378,30 @@ export async function loadHierarchicalGeminiMemory(
   );
 }
 
-/**
- * Creates a filter function to determine if a tool should be excluded.
- *
- * In non-interactive mode, we want to disable tools that require user
- * interaction to prevent the CLI from hanging. This function creates a predicate
- * that returns `true` if a tool should be excluded.
- *
- * A tool is excluded if it's not in the `allowedToolsSet`. The shell tool
- * has a special case: it's not excluded if any of its subcommands
- * are in the `allowedTools` list.
- *
- * @param allowedTools A list of explicitly allowed tool names.
- * @param allowedToolsSet A set of explicitly allowed tool names for quick lookups.
- * @returns A function that takes a tool name and returns `true` if it should be excluded.
- */
-function createToolExclusionFilter(
-  allowedTools: string[],
-  allowedToolsSet: Set<string>,
-) {
-  return (tool: string): boolean => {
-    if (tool === ShellTool.Name) {
-      // If any of the allowed tools is ShellTool (even with subcommands), don't exclude it.
-      return !allowedTools.some((allowed) =>
-        SHELL_TOOL_NAMES.some((shellName) => allowed.startsWith(shellName)),
-      );
-    }
-    return !allowedToolsSet.has(tool);
-  };
-}
-
-export function isDebugMode(argv: CliArgs): boolean {
-  return (
-    argv.debug ||
-    [process.env['DEBUG'], process.env['DEBUG_MODE']].some(
-      (v) => v === 'true' || v === '1',
-    )
-  );
-}
-
 export async function loadCliConfig(
   settings: Settings,
-  extensions: GeminiCLIExtension[],
-  extensionEnablementManager: ExtensionEnablementManager,
+  extensions: Extension[],
   sessionId: string,
   argv: CliArgs,
   cwd: string = process.cwd(),
 ): Promise<Config> {
-  const debugMode = isDebugMode(argv);
-
-  const memoryImportFormat = settings.context?.importFormat || 'tree';
+  const debugMode =
+    argv.debug ||
+    [process.env["DEBUG"], process.env["DEBUG_MODE"]].some(
+      (v) => v === "true" || v === "1",
+    ) ||
+    false;
+  const memoryImportFormat = settings.context?.importFormat || "tree";
 
   const ideMode = settings.ide?.enabled ?? false;
 
   const folderTrust = settings.security?.folderTrust?.enabled ?? false;
-  const trustedFolder = isWorkspaceTrusted(settings)?.isTrusted ?? true;
+  const trustedFolder = isWorkspaceTrusted(settings) ?? true;
 
   const allExtensions = annotateActiveExtensions(
     extensions,
+    argv.extensions || [],
     cwd,
-    extensionEnablementManager,
   );
 
   const activeExtensions = extensions.filter(
@@ -503,10 +413,10 @@ export async function loadCliConfig(
   // directly to the Config constructor in core, and have core handle setGeminiMdFilename.
   // However, loadHierarchicalGeminiMemory is called *before* createServerConfig.
   if (settings.context?.fileName) {
-    setServerGeminiMdFilename(settings.context.fileName);
+    setServerKaiDexMdFilename(settings.context.fileName);
   } else {
     // Reset to default if not provided in settings.
-    setServerGeminiMdFilename(getCurrentGeminiMdFilename());
+    setServerKaiDexMdFilename(getCurrentKaiDexMdFilename());
   }
 
   const extensionContextFilePaths = activeExtensions.flatMap(
@@ -525,36 +435,36 @@ export async function loadCliConfig(
     .concat((argv.includeDirectories || []).map(resolvePath));
 
   // Call the (now wrapper) loadHierarchicalGeminiMemory which calls the server's version
-  const { memoryContent, fileCount, filePaths } =
-    await loadHierarchicalGeminiMemory(
-      cwd,
-      settings.context?.loadMemoryFromIncludeDirectories
-        ? includeDirectories
-        : [],
-      debugMode,
-      fileService,
-      settings,
-      extensionContextFilePaths,
-      trustedFolder,
-      memoryImportFormat,
-      fileFiltering,
-    );
+  const { memoryContent, fileCount } = await loadHierarchicalGeminiMemory(
+    cwd,
+    settings.context?.loadMemoryFromIncludeDirectories
+      ? includeDirectories
+      : [],
+    debugMode,
+    fileService,
+    settings,
+    extensionContextFilePaths,
+    trustedFolder,
+    memoryImportFormat,
+    fileFiltering,
+  );
 
   let mcpServers = mergeMcpServers(settings, activeExtensions);
-  const question = argv.promptInteractive || argv.prompt || '';
+  const question =
+    argv.promptInteractive || argv.prompt || (argv.promptWords || []).join(" ");
 
   // Determine approval mode with backward compatibility
   let approvalMode: ApprovalMode;
   if (argv.approvalMode) {
     // New --approval-mode flag takes precedence
     switch (argv.approvalMode) {
-      case 'yolo':
+      case "yolo":
         approvalMode = ApprovalMode.YOLO;
         break;
-      case 'auto_edit':
+      case "auto_edit":
         approvalMode = ApprovalMode.AUTO_EDIT;
         break;
-      case 'default':
+      case "default":
         approvalMode = ApprovalMode.DEFAULT;
         break;
       default:
@@ -576,55 +486,19 @@ export async function loadCliConfig(
     approvalMode = ApprovalMode.DEFAULT;
   }
 
-  let telemetrySettings;
-  try {
-    telemetrySettings = await resolveTelemetrySettings({
-      argv,
-      env: process.env as unknown as Record<string, string | undefined>,
-      settings: settings.telemetry,
-    });
-  } catch (err) {
-    if (err instanceof FatalConfigError) {
-      throw new FatalConfigError(
-        `Invalid telemetry configuration: ${err.message}.`,
-      );
-    }
-    throw err;
-  }
-
-  const policyEngineConfig = createPolicyEngineConfig(settings, approvalMode);
-
-  const allowedTools = argv.allowedTools || settings.tools?.allowed || [];
-  const allowedToolsSet = new Set(allowedTools);
-
-  // Interactive mode: explicit -i flag or (TTY + no args + no -p flag)
-  const hasQuery = !!argv.query;
   const interactive =
-    !!argv.promptInteractive ||
-    (process.stdin.isTTY && !hasQuery && !argv.prompt);
+    !!argv.promptInteractive || (process.stdin.isTTY && question.length === 0);
   // In non-interactive mode, exclude tools that require a prompt.
   const extraExcludes: string[] = [];
   if (!interactive && !argv.experimentalAcp) {
-    const defaultExcludes = [
-      ShellTool.Name,
-      EditTool.Name,
-      WRITE_FILE_TOOL_NAME,
-    ];
-    const autoEditExcludes = [ShellTool.Name];
-
-    const toolExclusionFilter = createToolExclusionFilter(
-      allowedTools,
-      allowedToolsSet,
-    );
-
     switch (approvalMode) {
       case ApprovalMode.DEFAULT:
         // In default non-interactive mode, all tools that require approval are excluded.
-        extraExcludes.push(...defaultExcludes.filter(toolExclusionFilter));
+        extraExcludes.push(ShellTool.Name, EditTool.Name, WriteFileTool.Name);
         break;
       case ApprovalMode.AUTO_EDIT:
         // In auto-edit non-interactive mode, only tools that still require a prompt are excluded.
-        extraExcludes.push(...autoEditExcludes.filter(toolExclusionFilter));
+        extraExcludes.push(ShellTool.Name);
         break;
       case ApprovalMode.YOLO:
         // No extra excludes for YOLO mode.
@@ -669,16 +543,6 @@ export async function loadCliConfig(
     );
   }
 
-  const useModelRouter = settings.experimental?.useModelRouter ?? false;
-  const defaultModel = useModelRouter
-    ? DEFAULT_GEMINI_MODEL_AUTO
-    : DEFAULT_GEMINI_MODEL;
-  const resolvedModel: string =
-    argv.model ||
-    process.env['GEMINI_MODEL'] ||
-    settings.model?.name ||
-    defaultModel;
-
   const sandboxConfig = await loadSandboxConfig(settings, argv);
   const screenReader =
     argv.screenReader !== undefined
@@ -686,7 +550,7 @@ export async function loadCliConfig(
       : (settings.ui?.accessibility?.screenReader ?? false);
   return new Config({
     sessionId,
-    embeddingModel: DEFAULT_GEMINI_EMBEDDING_MODEL,
+    embeddingModel: DEFAULT_KAIDEX_EMBEDDING_MODEL,
     sandbox: sandboxConfig,
     targetDir: cwd,
     includeDirectories,
@@ -696,16 +560,14 @@ export async function loadCliConfig(
     question,
     fullContext: argv.allFiles || false,
     coreTools: settings.tools?.core || undefined,
-    allowedTools: allowedTools.length > 0 ? allowedTools : undefined,
-    policyEngineConfig,
+    allowedTools: argv.allowedTools || settings.tools?.allowed || undefined,
     excludeTools,
     toolDiscoveryCommand: settings.tools?.discoveryCommand,
     toolCallCommand: settings.tools?.callCommand,
     mcpServerCommand: settings.mcp?.serverCommand,
     mcpServers,
     userMemory: memoryContent,
-    geminiMdFileCount: fileCount,
-    geminiMdFilePaths: filePaths,
+    kaidexMdFileCount: fileCount,
     approvalMode,
     showMemoryUsage:
       argv.showMemoryUsage || settings.ui?.showMemoryUsage || false,
@@ -713,28 +575,43 @@ export async function loadCliConfig(
       ...settings.ui?.accessibility,
       screenReader,
     },
-    telemetry: telemetrySettings,
+    telemetry: {
+      enabled: argv.telemetry ?? settings.telemetry?.enabled,
+      target: (argv.telemetryTarget ??
+        settings.telemetry?.target) as TelemetryTarget,
+      otlpEndpoint:
+        argv.telemetryOtlpEndpoint ??
+        process.env["OTEL_EXPORTER_OTLP_ENDPOINT"] ??
+        settings.telemetry?.otlpEndpoint,
+      otlpProtocol: (["grpc", "http"] as const).find(
+        (p) =>
+          p ===
+          (argv.telemetryOtlpProtocol ?? settings.telemetry?.otlpProtocol),
+      ),
+      logPrompts: argv.telemetryLogPrompts ?? settings.telemetry?.logPrompts,
+      outfile: argv.telemetryOutfile ?? settings.telemetry?.outfile,
+    },
     usageStatisticsEnabled: settings.privacy?.usageStatisticsEnabled ?? true,
     fileFiltering: settings.context?.fileFiltering,
     checkpointing:
       argv.checkpointing || settings.general?.checkpointing?.enabled,
     proxy:
       argv.proxy ||
-      process.env['HTTPS_PROXY'] ||
-      process.env['https_proxy'] ||
-      process.env['HTTP_PROXY'] ||
-      process.env['http_proxy'],
+      process.env["HTTPS_PROXY"] ||
+      process.env["https_proxy"] ||
+      process.env["HTTP_PROXY"] ||
+      process.env["http_proxy"],
     cwd,
     fileDiscoveryService: fileService,
     bugCommand: settings.advanced?.bugCommand,
-    model: resolvedModel,
+    model: argv.model || settings.model?.name || DEFAULT_KAIDEX_MODEL,
     extensionContextFilePaths,
     maxSessionTurns: settings.model?.maxSessionTurns ?? -1,
     experimentalZedIntegration: argv.experimentalAcp || false,
     listExtensions: argv.listExtensions || false,
     extensions: allExtensions,
     blockedMcpServers,
-    noBrowser: !!process.env['NO_BROWSER'],
+    noBrowser: !!process.env["NO_BROWSER"],
     summarizeToolOutput: settings.model?.summarizeToolOutput,
     ideMode,
     chatCompression: settings.model?.chatCompression,
@@ -742,23 +619,13 @@ export async function loadCliConfig(
     interactive,
     trustedFolder,
     useRipgrep: settings.tools?.useRipgrep,
-    enableInteractiveShell:
-      settings.tools?.shell?.enableInteractiveShell ?? true,
+    shouldUseNodePtyShell: settings.tools?.usePty,
     skipNextSpeakerCheck: settings.model?.skipNextSpeakerCheck,
     enablePromptCompletion: settings.general?.enablePromptCompletion ?? false,
     truncateToolOutputThreshold: settings.tools?.truncateToolOutputThreshold,
     truncateToolOutputLines: settings.tools?.truncateToolOutputLines,
-    enableToolOutputTruncation: settings.tools?.enableToolOutputTruncation,
     eventEmitter: appEvents,
     useSmartEdit: argv.useSmartEdit ?? settings.useSmartEdit,
-    useWriteTodos: argv.useWriteTodos ?? settings.useWriteTodos,
-    output: {
-      format: (argv.outputFormat ?? settings.output?.format) as OutputFormat,
-    },
-    useModelRouter,
-    enableMessageBusIntegration:
-      settings.tools?.enableMessageBusIntegration ?? false,
-    enableSubagents: settings.experimental?.enableSubagents ?? false,
   });
 }
 
@@ -775,7 +642,7 @@ function allowedMcpServers(
         if (!isAllowed) {
           blockedMcpServers.push({
             name: key,
-            extensionName: server.extensionName || '',
+            extensionName: server.extensionName || "",
           });
         }
         return isAllowed;
@@ -785,7 +652,7 @@ function allowedMcpServers(
     blockedMcpServers.push(
       ...Object.entries(mcpServers).map(([key, server]) => ({
         name: key,
-        extensionName: server.extensionName || '',
+        extensionName: server.extensionName || "",
       })),
     );
     mcpServers = {};
@@ -793,28 +660,30 @@ function allowedMcpServers(
   return mcpServers;
 }
 
-function mergeMcpServers(settings: Settings, extensions: GeminiCLIExtension[]) {
+function mergeMcpServers(settings: Settings, extensions: Extension[]) {
   const mcpServers = { ...(settings.mcpServers || {}) };
   for (const extension of extensions) {
-    Object.entries(extension.mcpServers || {}).forEach(([key, server]) => {
-      if (mcpServers[key]) {
-        logger.warn(
-          `Skipping extension MCP config for server with key "${key}" as it already exists.`,
-        );
-        return;
-      }
-      mcpServers[key] = {
-        ...server,
-        extensionName: extension.name,
-      };
-    });
+    Object.entries(extension.config.mcpServers || {}).forEach(
+      ([key, server]) => {
+        if (mcpServers[key]) {
+          logger.warn(
+            `Skipping extension MCP config for server with key "${key}" as it already exists.`,
+          );
+          return;
+        }
+        mcpServers[key] = {
+          ...server,
+          extensionName: extension.config.name,
+        };
+      },
+    );
   }
   return mcpServers;
 }
 
 function mergeExcludeTools(
   settings: Settings,
-  extensions: GeminiCLIExtension[],
+  extensions: Extension[],
   extraExcludes?: string[] | undefined,
 ): string[] {
   const allExcludeTools = new Set([
@@ -822,7 +691,7 @@ function mergeExcludeTools(
     ...(extraExcludes || []),
   ]);
   for (const extension of extensions) {
-    for (const tool of extension.excludeTools || []) {
+    for (const tool of extension.config.excludeTools || []) {
       allExcludeTools.add(tool);
     }
   }

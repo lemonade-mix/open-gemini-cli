@@ -4,23 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import AjvPkg from 'ajv';
-import * as addFormats from 'ajv-formats';
+import AjvPkg from "ajv";
+import * as addFormats from "ajv-formats";
 // Ajv's ESM/CJS interop: use 'any' for compatibility as recommended by Ajv docs
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const AjvClass = (AjvPkg as any).default || AjvPkg;
-const ajValidator = new AjvClass(
-  // See: https://ajv.js.org/options.html#strict-mode-options
-  {
-    // strictSchema defaults to true and prevents use of JSON schemas that
-    // include unrecognized keywords. The JSON schema spec specifically allows
-    // for the use of non-standard keywords and the spec-compliant behavior
-    // is to ignore those keywords. Note that setting this to false also
-    // allows use of non-standard or custom formats (the unknown format value
-    // will be logged but the schema will still be considered valid).
-    strictSchema: false,
-  },
-);
+const ajValidator = new AjvClass();
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const addFormatsFunc = (addFormats as any).default || addFormats;
 addFormatsFunc(ajValidator);
@@ -37,13 +26,13 @@ export class SchemaValidator {
     if (!schema) {
       return null;
     }
-    if (typeof data !== 'object' || data === null) {
-      return 'Value of params must be an object';
+    if (typeof data !== "object" || data === null) {
+      return "Value of params must be an object";
     }
     const validate = ajValidator.compile(schema);
     const valid = validate(data);
     if (!valid && validate.errors) {
-      return ajValidator.errorsText(validate.errors, { dataVar: 'params' });
+      return ajValidator.errorsText(validate.errors, { dataVar: "params" });
     }
     return null;
   }

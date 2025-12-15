@@ -4,21 +4,21 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type React from 'react';
-import { useState } from 'react';
-import { Box, Text } from 'ink';
-import { theme } from '../semantic-colors.js';
+import type React from "react";
+import { useState } from "react";
+import { Box, Text } from "ink";
+import { Colors } from "../colors.js";
 import {
   EDITOR_DISPLAY_NAMES,
   editorSettingsManager,
   type EditorDisplay,
-} from '../editors/editorSettingsManager.js';
-import { RadioButtonSelect } from './shared/RadioButtonSelect.js';
-import type { LoadedSettings } from '../../config/settings.js';
-import { SettingScope } from '../../config/settings.js';
-import type { EditorType } from '@google/gemini-cli-core';
-import { isEditorAvailable } from '@google/gemini-cli-core';
-import { useKeypress } from '../hooks/useKeypress.js';
+} from "../editors/editorSettingsManager.js";
+import { RadioButtonSelect } from "./shared/RadioButtonSelect.js";
+import type { LoadedSettings } from "../../config/settings.js";
+import { SettingScope } from "../../config/settings.js";
+import type { EditorType } from "@google/kaidex-cli-core";
+import { isEditorAvailable } from "@google/kaidex-cli-core";
+import { useKeypress } from "../hooks/useKeypress.js";
 
 interface EditorDialogProps {
   onSelect: (editorType: EditorType | undefined, scope: SettingScope) => void;
@@ -34,15 +34,15 @@ export function EditorSettingsDialog({
   const [selectedScope, setSelectedScope] = useState<SettingScope>(
     SettingScope.User,
   );
-  const [focusedSection, setFocusedSection] = useState<'editor' | 'scope'>(
-    'editor',
+  const [focusedSection, setFocusedSection] = useState<"editor" | "scope">(
+    "editor",
   );
   useKeypress(
     (key) => {
-      if (key.name === 'tab') {
-        setFocusedSection((prev) => (prev === 'editor' ? 'scope' : 'editor'));
+      if (key.name === "tab") {
+        setFocusedSection((prev) => (prev === "editor" ? "scope" : "editor"));
       }
-      if (key.name === 'escape') {
+      if (key.name === "escape") {
         onExit();
       }
     },
@@ -65,20 +65,12 @@ export function EditorSettingsDialog({
   }
 
   const scopeItems = [
-    {
-      label: 'User Settings',
-      value: SettingScope.User,
-      key: SettingScope.User,
-    },
-    {
-      label: 'Workspace Settings',
-      value: SettingScope.Workspace,
-      key: SettingScope.Workspace,
-    },
+    { label: "User Settings", value: SettingScope.User },
+    { label: "Workspace Settings", value: SettingScope.Workspace },
   ];
 
-  const handleEditorSelect = (editorType: EditorType | 'not_set') => {
-    if (editorType === 'not_set') {
+  const handleEditorSelect = (editorType: EditorType | "not_set") => {
+    if (editorType === "not_set") {
       onSelect(undefined, selectedScope);
       return;
     }
@@ -87,10 +79,10 @@ export function EditorSettingsDialog({
 
   const handleScopeSelect = (scope: SettingScope) => {
     setSelectedScope(scope);
-    setFocusedSection('editor');
+    setFocusedSection("editor");
   };
 
-  let otherScopeModifiedMessage = '';
+  let otherScopeModifiedMessage = "";
   const otherScope =
     selectedScope === SettingScope.User
       ? SettingScope.Workspace
@@ -106,7 +98,7 @@ export function EditorSettingsDialog({
         : `(Modified in ${otherScope})`;
   }
 
-  let mergedEditorName = 'None';
+  let mergedEditorName = "None";
   if (
     settings.merged.general?.preferredEditor &&
     isEditorAvailable(settings.merged.general?.preferredEditor)
@@ -120,64 +112,61 @@ export function EditorSettingsDialog({
   return (
     <Box
       borderStyle="round"
-      borderColor={theme.border.default}
+      borderColor={Colors.Gray}
       flexDirection="row"
       padding={1}
       width="100%"
     >
       <Box flexDirection="column" width="45%" paddingRight={2}>
-        <Text bold={focusedSection === 'editor'}>
-          {focusedSection === 'editor' ? '> ' : '  '}Select Editor{' '}
-          <Text color={theme.text.secondary}>{otherScopeModifiedMessage}</Text>
+        <Text bold={focusedSection === "editor"}>
+          {focusedSection === "editor" ? "> " : "  "}Select Editor{" "}
+          <Text color={Colors.Gray}>{otherScopeModifiedMessage}</Text>
         </Text>
         <RadioButtonSelect
           items={editorItems.map((item) => ({
             label: item.name,
             value: item.type,
             disabled: item.disabled,
-            key: item.type,
           }))}
           initialIndex={editorIndex}
           onSelect={handleEditorSelect}
-          isFocused={focusedSection === 'editor'}
+          isFocused={focusedSection === "editor"}
           key={selectedScope}
         />
 
         <Box marginTop={1} flexDirection="column">
-          <Text bold={focusedSection === 'scope'}>
-            {focusedSection === 'scope' ? '> ' : '  '}Apply To
+          <Text bold={focusedSection === "scope"}>
+            {focusedSection === "scope" ? "> " : "  "}Apply To
           </Text>
           <RadioButtonSelect
             items={scopeItems}
             initialIndex={0}
             onSelect={handleScopeSelect}
-            isFocused={focusedSection === 'scope'}
+            isFocused={focusedSection === "scope"}
           />
         </Box>
 
         <Box marginTop={1}>
-          <Text color={theme.text.secondary}>
+          <Text color={Colors.Gray}>
             (Use Enter to select, Tab to change focus)
           </Text>
         </Box>
       </Box>
 
       <Box flexDirection="column" width="55%" paddingLeft={2}>
-        <Text bold color={theme.text.primary}>
-          Editor Preference
-        </Text>
+        <Text bold>Editor Preference</Text>
         <Box flexDirection="column" gap={1} marginTop={1}>
-          <Text color={theme.text.secondary}>
+          <Text color={Colors.Gray}>
             These editors are currently supported. Please note that some editors
             cannot be used in sandbox mode.
           </Text>
-          <Text color={theme.text.secondary}>
-            Your preferred editor is:{' '}
+          <Text color={Colors.Gray}>
+            Your preferred editor is:{" "}
             <Text
               color={
-                mergedEditorName === 'None'
-                  ? theme.status.error
-                  : theme.text.link
+                mergedEditorName === "None"
+                  ? Colors.AccentRed
+                  : Colors.AccentCyan
               }
               bold
             >

@@ -4,15 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { GroundingMetadata } from '@google/genai';
-import type { ToolInvocation, ToolResult } from './tools.js';
-import { BaseDeclarativeTool, BaseToolInvocation, Kind } from './tools.js';
-import { ToolErrorType } from './tool-error.js';
+import type { GroundingMetadata } from "@google/genai";
+import type { ToolInvocation, ToolResult } from "./tools.js";
+import { BaseDeclarativeTool, BaseToolInvocation, Kind } from "./tools.js";
+import { ToolErrorType } from "./tool-error.js";
 
-import { getErrorMessage } from '../utils/errors.js';
-import { type Config } from '../config/config.js';
-import { getResponseText } from '../utils/partUtils.js';
-import { DEFAULT_GEMINI_FLASH_MODEL } from '../config/models.js';
+import { getErrorMessage } from "../utils/errors.js";
+import { type Config } from "../config/config.js";
+import { getResponseText } from "../utils/partUtils.js";
+import { DEFAULT_KAIDEX_FLASH_MODEL } from "../config/models.js";
 
 interface GroundingChunkWeb {
   uri?: string;
@@ -52,7 +52,7 @@ export interface WebSearchToolParams {
  */
 export interface WebSearchToolResult extends ToolResult {
   sources?: GroundingMetadata extends { groundingChunks: GroundingChunkItem[] }
-    ? GroundingMetadata['groundingChunks']
+    ? GroundingMetadata["groundingChunks"]
     : GroundingChunkItem[];
 }
 
@@ -72,18 +72,19 @@ class WebSearchToolInvocation extends BaseToolInvocation<
   }
 
   async execute(signal: AbortSignal): Promise<WebSearchToolResult> {
-    const geminiClient = this.config.getGeminiClient();
+    const geminiClient = this.config.getKaiDexClient();
 
     try {
       const response = await geminiClient.generateContent(
-        [{ role: 'user', parts: [{ text: this.params.query }] }],
+        [{ role: "user", parts: [{ text: this.params.query }] }],
         { tools: [{ googleSearch: {} }] },
         signal,
-        DEFAULT_GEMINI_FLASH_MODEL,
+        DEFAULT_KAIDEX_FLASH_MODEL,
       );
 
-      const responseText = getResponseText(response);
-      const groundingMetadata = response.candidates?.[0]?.groundingMetadata;
+      const responseText = getResponseText(response as any);
+      const groundingMetadata = (response as any).candidates?.[0]
+        ?.groundingMetadata;
       const sources = groundingMetadata?.groundingChunks as
         | GroundingChunkItem[]
         | undefined;
@@ -94,7 +95,7 @@ class WebSearchToolInvocation extends BaseToolInvocation<
       if (!responseText || !responseText.trim()) {
         return {
           llmContent: `No search results or information found for query: "${this.params.query}"`,
-          returnDisplay: 'No information found.',
+          returnDisplay: "No information found.",
         };
       }
 
@@ -103,8 +104,8 @@ class WebSearchToolInvocation extends BaseToolInvocation<
 
       if (sources && sources.length > 0) {
         sources.forEach((source: GroundingChunkItem, index: number) => {
-          const title = source.web?.title || 'Untitled';
-          const uri = source.web?.uri || 'No URI';
+          const title = source.web?.title || "Untitled";
+          const uri = source.web?.uri || "No URI";
           sourceListFormatted.push(`[${index + 1}] ${title} (${uri})`);
         });
 
@@ -114,7 +115,7 @@ class WebSearchToolInvocation extends BaseToolInvocation<
             if (support.segment && support.groundingChunkIndices) {
               const citationMarker = support.groundingChunkIndices
                 .map((chunkIndex: number) => `[${chunkIndex + 1}]`)
-                .join('');
+                .join("");
               insertions.push({
                 index: support.segment.endIndex,
                 marker: citationMarker,
@@ -151,7 +152,7 @@ class WebSearchToolInvocation extends BaseToolInvocation<
 
         if (sourceListFormatted.length > 0) {
           modifiedResponseText +=
-            '\n\nSources:\n' + sourceListFormatted.join('\n');
+            "\n\nSources:\n" + sourceListFormatted.join("\n");
         }
       }
 
@@ -178,29 +179,29 @@ class WebSearchToolInvocation extends BaseToolInvocation<
 }
 
 /**
- * A tool to perform web searches using Google Search via the Gemini API.
+ * A tool to perform web searches using Google Search via the KaiDex API.
  */
 export class WebSearchTool extends BaseDeclarativeTool<
   WebSearchToolParams,
   WebSearchToolResult
 > {
-  static readonly Name: string = 'google_web_search';
+  static readonly Name: string = "google_web_search";
 
   constructor(private readonly config: Config) {
     super(
       WebSearchTool.Name,
-      'GoogleSearch',
-      'Performs a web search using Google Search (via the Gemini API) and returns the results. This tool is useful for finding information on the internet based on a query.',
+      "GoogleSearch",
+      "Performs a web search using Google Search (via the KaiDex API) and returns the results. This tool is useful for finding information on the internet based on a query.",
       Kind.Search,
       {
-        type: 'object',
+        type: "object",
         properties: {
           query: {
-            type: 'string',
-            description: 'The search query to find information on the web.',
+            type: "string",
+            description: "The search query to find information on the web.",
           },
         },
-        required: ['query'],
+        required: ["query"],
       },
     );
   }
@@ -213,7 +214,7 @@ export class WebSearchTool extends BaseDeclarativeTool<
   protected override validateToolParamValues(
     params: WebSearchToolParams,
   ): string | null {
-    if (!params.query || params.query.trim() === '') {
+    if (!params.query || params.query.trim() === "") {
       return "The 'query' parameter cannot be empty.";
     }
     return null;

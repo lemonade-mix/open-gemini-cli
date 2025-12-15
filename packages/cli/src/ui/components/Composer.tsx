@@ -4,94 +4,148 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Box, Text, useIsScreenReaderEnabled } from 'ink';
-import { LoadingIndicator } from './LoadingIndicator.js';
-import { ContextSummaryDisplay } from './ContextSummaryDisplay.js';
-import { AutoAcceptIndicator } from './AutoAcceptIndicator.js';
-import { ShellModeIndicator } from './ShellModeIndicator.js';
-import { DetailedMessagesDisplay } from './DetailedMessagesDisplay.js';
-import { InputPrompt } from './InputPrompt.js';
-import { Footer } from './Footer.js';
-import { ShowMoreLines } from './ShowMoreLines.js';
-import { QueuedMessageDisplay } from './QueuedMessageDisplay.js';
-import { OverflowProvider } from '../contexts/OverflowContext.js';
-import { theme } from '../semantic-colors.js';
-import { isNarrowWidth } from '../utils/isNarrowWidth.js';
-import { useUIState } from '../contexts/UIStateContext.js';
-import { useUIActions } from '../contexts/UIActionsContext.js';
-import { useVimMode } from '../contexts/VimModeContext.js';
-import { useConfig } from '../contexts/ConfigContext.js';
-import { useSettings } from '../contexts/SettingsContext.js';
-import { ApprovalMode } from '@google/gemini-cli-core';
-import { StreamingState } from '../types.js';
-import { ConfigInitDisplay } from '../components/ConfigInitDisplay.js';
+import { Box, Text } from "ink";
+import { LoadingIndicator } from "./LoadingIndicator.js";
+import { ContextSummaryDisplay } from "./ContextSummaryDisplay.js";
+import { AutoAcceptIndicator } from "./AutoAcceptIndicator.js";
+import { ShellModeIndicator } from "./ShellModeIndicator.js";
+import { DetailedMessagesDisplay } from "./DetailedMessagesDisplay.js";
+import { InputPrompt } from "./InputPrompt.js";
+import { Footer, type FooterProps } from "./Footer.js";
+import { ShowMoreLines } from "./ShowMoreLines.js";
+import { OverflowProvider } from "../contexts/OverflowContext.js";
+import { Colors } from "../colors.js";
+import { isNarrowWidth } from "../utils/isNarrowWidth.js";
+import { useUIState } from "../contexts/UIStateContext.js";
+import { useUIActions } from "../contexts/UIActionsContext.js";
+import { useVimMode } from "../contexts/VimModeContext.js";
+import { useConfig } from "../contexts/ConfigContext.js";
+import { useSettings } from "../contexts/SettingsContext.js";
+import { ApprovalMode } from "@google/kaidex-cli-core";
+import { StreamingState } from "../types.js";
+import { ConfigInitDisplay } from "../components/ConfigInitDisplay.js";
+
+const MAX_DISPLAYED_QUEUED_MESSAGES = 3;
 
 export const Composer = () => {
   const config = useConfig();
   const settings = useSettings();
-  const isScreenReaderEnabled = useIsScreenReaderEnabled();
   const uiState = useUIState();
   const uiActions = useUIActions();
-  const { vimEnabled } = useVimMode();
+  const { vimEnabled, vimMode } = useVimMode();
   const terminalWidth = process.stdout.columns;
   const isNarrow = isNarrowWidth(terminalWidth);
   const debugConsoleMaxHeight = Math.floor(Math.max(terminalWidth * 0.2, 5));
 
   const { contextFileNames, showAutoAcceptIndicator } = uiState;
 
+  // Estimate streaming output tokens from CURRENT response only (not accumulated)
+  const streamingOutputTokens =
+    uiState.streamingState === StreamingState.Responding
+      ? (() => {
+          // Estimate from current pending content length
+          if (uiState.pendingGeminiHistoryItems.length > 0) {
+            const lastItem =
+              uiState.pendingGeminiHistoryItems[
+                uiState.pendingGeminiHistoryItems.length - 1
+              ];
+            if (lastItem?.type === "gemini" && lastItem.text) {
+              // Rough estimate: 1 token ≈ 4 characters
+              return Math.ceil(lastItem.text.length / 4);
+            }
+          }
+          return 0;
+        })()
+      : 0;
+
+  // Build footer props from context values
+  const footerProps: Omit<FooterProps, "vimMode"> = {
+    model: config.getModel(),
+    targetDir: config.getTargetDir(),
+    debugMode: config.getDebugMode(),
+    branchName: uiState.branchName,
+    debugMessage: uiState.debugMessage,
+    corgiMode: uiState.corgiMode,
+    errorCount: uiState.errorCount,
+    showErrorDetails: uiState.showErrorDetails,
+    showMemoryUsage:
+      config.getDebugMode() || settings.merged.ui?.showMemoryUsage || false,
+    promptTokenCount: uiState.sessionStats.lastPromptTokenCount,
+    nightly: uiState.nightly,
+    isTrustedFolder: uiState.isTrustedFolder,
+  };
+
   return (
-    <Box flexDirection="column" width={uiState.mainAreaWidth} flexShrink={0}>
-      {!uiState.embeddedShellFocused && (
-        <LoadingIndicator
-          thought={
-            uiState.streamingState === StreamingState.WaitingForConfirmation ||
-            config.getAccessibility()?.disableLoadingPhrases
-              ? undefined
-              : uiState.thought
-          }
-          currentLoadingPhrase={
-            config.getAccessibility()?.disableLoadingPhrases
-              ? undefined
-              : uiState.currentLoadingPhrase
-          }
-          elapsedTime={uiState.elapsedTime}
-        />
-      )}
+    <Box flexDirection="column">
+      <LoadingIndicator
+        thought={
+          uiState.streamingState === StreamingState.WaitingForConfirmation ||
+          config.getAccessibility()?.disableLoadingPhrases
+            ? undefined
+            : uiState.thought
+        }
+        currentLoadingPhrase={
+          config.getAccessibility()?.disableLoadingPhrases
+            ? undefined
+            : uiState.currentLoadingPhrase
+        }
+        elapsedTime={uiState.elapsedTime}
+        streamingOutputTokens={streamingOutputTokens}
+        model={config.getModel()}
+      />
 
       {!uiState.isConfigInitialized && <ConfigInitDisplay />}
 
-      <QueuedMessageDisplay messageQueue={uiState.messageQueue} />
+      {uiState.messageQueue.length > 0 && (
+        <Box flexDirection="column" marginTop={1}>
+          {uiState.messageQueue
+            .slice(0, MAX_DISPLAYED_QUEUED_MESSAGES)
+            .map((message, index) => {
+              const preview = message.replace(/\s+/g, " ");
+
+              return (
+                <Box key={index} paddingLeft={2} width="100%">
+                  <Text dimColor wrap="truncate">
+                    {preview}
+                  </Text>
+                </Box>
+              );
+            })}
+          {uiState.messageQueue.length > MAX_DISPLAYED_QUEUED_MESSAGES && (
+            <Box paddingLeft={2}>
+              <Text dimColor>
+                ... (+
+                {uiState.messageQueue.length -
+                  MAX_DISPLAYED_QUEUED_MESSAGES}{" "}
+                more)
+              </Text>
+            </Box>
+          )}
+        </Box>
+      )}
 
       <Box
         marginTop={1}
-        justifyContent={
-          settings.merged.ui?.hideContextSummary
-            ? 'flex-start'
-            : 'space-between'
-        }
+        justifyContent="space-between"
         width="100%"
-        flexDirection={isNarrow ? 'column' : 'row'}
-        alignItems={isNarrow ? 'flex-start' : 'center'}
+        flexDirection={isNarrow ? "column" : "row"}
+        alignItems={isNarrow ? "flex-start" : "center"}
       >
-        <Box marginRight={1}>
-          {process.env['GEMINI_SYSTEM_MD'] && (
-            <Text color={theme.status.error}>|⌐■_■| </Text>
+        <Box>
+          {process.env["KAIDEX_SYSTEM_MD"] && (
+            <Text color={Colors.AccentRed}>|⌐■_■| </Text>
           )}
           {uiState.ctrlCPressedOnce ? (
-            <Text color={theme.status.warning}>
-              Press Ctrl+C again to exit.
-            </Text>
+            <Text color={Colors.AccentYellow}>Press Ctrl+C again to exit.</Text>
           ) : uiState.ctrlDPressedOnce ? (
-            <Text color={theme.status.warning}>
-              Press Ctrl+D again to exit.
-            </Text>
+            <Text color={Colors.AccentYellow}>Press Ctrl+D again to exit.</Text>
           ) : uiState.showEscapePrompt ? (
-            <Text color={theme.text.secondary}>Press Esc again to clear.</Text>
+            <Text color={Colors.Gray}>Press Esc again to clear.</Text>
           ) : (
             !settings.merged.ui?.hideContextSummary && (
               <ContextSummaryDisplay
                 ideContext={uiState.ideContextState}
-                geminiMdFileCount={uiState.geminiMdFileCount}
+                kaidexMdFileCount={uiState.kaidexMdFileCount}
                 contextFileNames={contextFileNames}
                 mcpServers={config.getMcpServers()}
                 blockedMcpServers={config.getBlockedMcpServers()}
@@ -117,7 +171,7 @@ export const Composer = () => {
               maxHeight={
                 uiState.constrainHeight ? debugConsoleMaxHeight : undefined
               }
-              width={uiState.mainAreaWidth}
+              width={uiState.inputWidth}
             />
             <ShowMoreLines constrainHeight={uiState.constrainHeight} />
           </Box>
@@ -137,20 +191,20 @@ export const Composer = () => {
           commandContext={uiState.commandContext}
           shellModeActive={uiState.shellModeActive}
           setShellModeActive={uiActions.setShellModeActive}
-          approvalMode={showAutoAcceptIndicator}
           onEscapePromptChange={uiActions.onEscapePromptChange}
-          focus={true}
+          focus={uiState.isFocused}
           vimHandleInput={uiActions.vimHandleInput}
-          isEmbeddedShellFocused={uiState.embeddedShellFocused}
           placeholder={
             vimEnabled
               ? "  Press 'i' for INSERT mode and 'Esc' for NORMAL mode."
-              : '  Type your message or @path/to/file'
+              : "  Type your message or @path/to/file"
           }
         />
       )}
 
-      {!settings.merged.ui?.hideFooter && !isScreenReaderEnabled && <Footer />}
+      {!settings.merged.ui?.hideFooter && (
+        <Footer {...footerProps} vimMode={vimEnabled ? vimMode : undefined} />
+      )}
     </Box>
   );
 };

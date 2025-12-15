@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { FileSystemService } from '@google/gemini-cli-core';
-import type * as acp from './acp.js';
+import type { FileSystemService } from "@google/kaidex-cli-core";
+import type * as acp from "./acp.js";
 
 /**
  * ACP client-based implementation of FileSystemService
@@ -43,8 +43,5 @@ export class AcpFileSystemService implements FileSystemService {
       content,
       sessionId: this.sessionId,
     });
-  }
-  findFiles(fileName: string, searchPaths: readonly string[]): string[] {
-    return this.fallback.findFiles(fileName, searchPaths);
   }
 }

@@ -21,7 +21,7 @@ export function resolveEnvVarsInString(value: string): string {
   const envVarRegex = /\$(?:(\w+)|{([^}]+)})/g; // Find $VAR_NAME or ${VAR_NAME}
   return value.replace(envVarRegex, (match, varName1, varName2) => {
     const varName = varName1 || varName2;
-    if (process && process.env && typeof process.env[varName] === 'string') {
+    if (process && process.env && typeof process.env[varName] === "string") {
       return process.env[varName]!;
     }
     return match;
@@ -65,13 +65,13 @@ function resolveEnvVarsInObjectInternal<T>(
   if (
     obj === null ||
     obj === undefined ||
-    typeof obj === 'boolean' ||
-    typeof obj === 'number'
+    typeof obj === "boolean" ||
+    typeof obj === "number"
   ) {
     return obj;
   }
 
-  if (typeof obj === 'string') {
+  if (typeof obj === "string") {
     return resolveEnvVarsInString(obj) as unknown as T;
   }
 
@@ -90,7 +90,7 @@ function resolveEnvVarsInObjectInternal<T>(
     return result;
   }
 
-  if (typeof obj === 'object') {
+  if (typeof obj === "object") {
     // Check for circular reference
     if (visited.has(obj as object)) {
       // Return a shallow copy to break the cycle

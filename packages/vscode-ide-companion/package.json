@@ -1,8 +1,8 @@
 {
   "name": "gemini-cli-vscode-ide-companion",
   "displayName": "Gemini CLI Companion",
-  "description": "Enable Gemini CLI with direct access to your IDE workspace.",
-  "version": "0.10.0-nightly.20251007.c195a9aa",
+  "description": "Enable KaiDex CLI with direct access to your IDE workspace.",
+  "version": "0.3.4",
   "publisher": "google",
   "icon": "assets/icon.png",
   "repository": {
@@ -31,16 +31,6 @@
     "onStartupFinished"
   ],
   "contributes": {
-    "configuration": {
-      "title": "Gemini CLI",
-      "properties": {
-        "gemini-cli.debug.logging.enabled": {
-          "type": "boolean",
-          "default": false,
-          "description": "Enable detailed logging for debugging the Gemini CLI Companion."
-        }
-      }
-    },
     "languages": [
       {
         "id": "gemini-diff-editable"
@@ -106,21 +96,19 @@
   "main": "./dist/extension.cjs",
   "type": "module",
   "scripts": {
-    "prepackage": "npm run generate:notices && npm run check-types && npm run lint && npm run build:prod",
-    "build": "npm run build:dev",
-    "build:dev": "npm run check-types && npm run lint && node esbuild.js",
-    "build:prod": "node esbuild.js --production",
-    "generate:notices": "node ./scripts/generate-notices.js",
-    "prepare": "npm run generate:notices",
-    "check-types": "tsc --noEmit",
-    "lint": "eslint src",
-    "watch": "npm-run-all2 -p watch:*",
+    "vscode:prepublish": "npm run generate:notices && npm run check-types && npm run lint && node esbuild.js --production",
+    "build": "npm run compile",
+    "compile": "npm run check-types && npm run lint && node esbuild.js",
+    "watch": "npm-run-all -p watch:*",
     "watch:esbuild": "node esbuild.js --watch",
     "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
     "package": "vsce package --no-dependencies",
+    "bundle": "echo 'VS Code extension already bundled via root bundle:vscode script'",
+    "generate:notices": "node ./scripts/generate-notices.js",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint src",
     "test": "vitest run",
-    "test:ci": "vitest run --coverage",
-    "validate:notices": "node ./scripts/validate-notices.js"
+    "test:ci": "vitest run --coverage"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",

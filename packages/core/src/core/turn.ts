@@ -11,25 +11,23 @@ import type {
   FunctionCall,
   FunctionDeclaration,
   FinishReason,
-  GenerateContentResponseUsageMetadata,
-} from '@google/genai';
+} from "./contentGenerator.js";
+import type { GenerateContentResponseUsageMetadata } from "./loggingContentGenerator.js";
 import type {
   ToolCallConfirmationDetails,
   ToolResult,
   ToolResultDisplay,
-} from '../tools/tools.js';
-import type { ToolErrorType } from '../tools/tool-error.js';
-import { getResponseText } from '../utils/partUtils.js';
-import { reportError } from '../utils/errorReporting.js';
+} from "../tools/tools.js";
+import type { ToolErrorType } from "../tools/tool-error.js";
+import { getResponseText } from "../utils/partUtils.js";
+import { reportError } from "../utils/errorReporting.js";
 import {
   getErrorMessage,
   UnauthorizedError,
   toFriendlyError,
-} from '../utils/errors.js';
-import type { GeminiChat } from './geminiChat.js';
-import { InvalidStreamError } from './geminiChat.js';
-import { parseThought, type ThoughtSummary } from '../utils/thoughtUtils.js';
-import { createUserContent } from '@google/genai';
+} from "../utils/errors.js";
+import type { KaiDexChat } from "./kaidexChat.js";
+import { createKaidexUserContent } from "./kaidexChat.js";
 
 // Define a structure for tools passed to the server
 export interface ServerTool {
@@ -46,38 +44,24 @@ export interface ServerTool {
   ): Promise<ToolCallConfirmationDetails | false>;
 }
 
-export enum GeminiEventType {
-  Content = 'content',
-  ToolCallRequest = 'tool_call_request',
-  ToolCallResponse = 'tool_call_response',
-  ToolCallConfirmation = 'tool_call_confirmation',
-  UserCancelled = 'user_cancelled',
-  Error = 'error',
-  ChatCompressed = 'chat_compressed',
-  Thought = 'thought',
-  MaxSessionTurns = 'max_session_turns',
-  Finished = 'finished',
-  LoopDetected = 'loop_detected',
-  Citation = 'citation',
-  Retry = 'retry',
-  ContextWindowWillOverflow = 'context_window_will_overflow',
-  InvalidStream = 'invalid_stream',
+export enum KaiDexEventType {
+  Content = "content",
+  ToolCallRequest = "tool_call_request",
+  ToolCallResponse = "tool_call_response",
+  ToolCallConfirmation = "tool_call_confirmation",
+  UserCancelled = "user_cancelled",
+  Error = "error",
+  ChatCompressed = "chat_compressed",
+  Thought = "thought",
+  MaxSessionTurns = "max_session_turns",
+  Finished = "finished",
+  LoopDetected = "loop_detected",
+  Citation = "citation",
+  Retry = "retry",
 }
 
-export type ServerGeminiRetryEvent = {
-  type: GeminiEventType.Retry;
-};
-
-export type ServerGeminiContextWindowWillOverflowEvent = {
-  type: GeminiEventType.ContextWindowWillOverflow;
-  value: {
-    estimatedRequestTokenCount: number;
-    remainingTokenCount: number;
-  };
-};
-
-export type ServerGeminiInvalidStreamEvent = {
-  type: GeminiEventType.InvalidStream;
+export type ServerKaiDexRetryEvent = {
+  type: KaiDexEventType.Retry;
 };
 
 export interface StructuredError {
@@ -85,11 +69,11 @@ export interface StructuredError {
   status?: number;
 }
 
-export interface GeminiErrorEventValue {
+export interface KaiDexErrorEventValue {
   error: StructuredError;
 }
 
-export interface GeminiFinishedEventValue {
+export interface KaiDexFinishedEventValue {
   reason: FinishReason | undefined;
   usageMetadata: GenerateContentResponseUsageMetadata | undefined;
 }
@@ -109,7 +93,6 @@ export interface ToolCallResponseInfo {
   error: Error | undefined;
   errorType: ToolErrorType | undefined;
   outputFile?: string | undefined;
-  contentLength?: number;
 }
 
 export interface ServerToolCallConfirmationDetails {
@@ -117,38 +100,43 @@ export interface ServerToolCallConfirmationDetails {
   details: ToolCallConfirmationDetails;
 }
 
-export type ServerGeminiContentEvent = {
-  type: GeminiEventType.Content;
+export type ThoughtSummary = {
+  subject: string;
+  description: string;
+};
+
+export type ServerKaiDexContentEvent = {
+  type: KaiDexEventType.Content;
   value: string;
 };
 
-export type ServerGeminiThoughtEvent = {
-  type: GeminiEventType.Thought;
+export type ServerKaiDexThoughtEvent = {
+  type: KaiDexEventType.Thought;
   value: ThoughtSummary;
 };
 
-export type ServerGeminiToolCallRequestEvent = {
-  type: GeminiEventType.ToolCallRequest;
+export type ServerKaiDexToolCallRequestEvent = {
+  type: KaiDexEventType.ToolCallRequest;
   value: ToolCallRequestInfo;
 };
 
-export type ServerGeminiToolCallResponseEvent = {
-  type: GeminiEventType.ToolCallResponse;
+export type ServerKaiDexToolCallResponseEvent = {
+  type: KaiDexEventType.ToolCallResponse;
   value: ToolCallResponseInfo;
 };
 
-export type ServerGeminiToolCallConfirmationEvent = {
-  type: GeminiEventType.ToolCallConfirmation;
+export type ServerKaiDexToolCallConfirmationEvent = {
+  type: KaiDexEventType.ToolCallConfirmation;
   value: ServerToolCallConfirmationDetails;
 };
 
-export type ServerGeminiUserCancelledEvent = {
-  type: GeminiEventType.UserCancelled;
+export type ServerKaiDexUserCancelledEvent = {
+  type: KaiDexEventType.UserCancelled;
 };
 
-export type ServerGeminiErrorEvent = {
-  type: GeminiEventType.Error;
-  value: GeminiErrorEventValue;
+export type ServerKaiDexErrorEvent = {
+  type: KaiDexEventType.Error;
+  value: KaiDexErrorEventValue;
 };
 
 export enum CompressionStatus {
@@ -171,71 +159,67 @@ export interface ChatCompressionInfo {
   compressionStatus: CompressionStatus;
 }
 
-export type ServerGeminiChatCompressedEvent = {
-  type: GeminiEventType.ChatCompressed;
+export type ServerKaiDexChatCompressedEvent = {
+  type: KaiDexEventType.ChatCompressed;
   value: ChatCompressionInfo | null;
 };
 
-export type ServerGeminiMaxSessionTurnsEvent = {
-  type: GeminiEventType.MaxSessionTurns;
+export type ServerKaiDexMaxSessionTurnsEvent = {
+  type: KaiDexEventType.MaxSessionTurns;
 };
 
-export type ServerGeminiFinishedEvent = {
-  type: GeminiEventType.Finished;
-  value: GeminiFinishedEventValue;
+export type ServerKaiDexFinishedEvent = {
+  type: KaiDexEventType.Finished;
+  value: KaiDexFinishedEventValue;
 };
 
-export type ServerGeminiLoopDetectedEvent = {
-  type: GeminiEventType.LoopDetected;
+export type ServerKaiDexLoopDetectedEvent = {
+  type: KaiDexEventType.LoopDetected;
 };
 
-export type ServerGeminiCitationEvent = {
-  type: GeminiEventType.Citation;
+export type ServerKaiDexCitationEvent = {
+  type: KaiDexEventType.Citation;
   value: string;
 };
 
 // The original union type, now composed of the individual types
-export type ServerGeminiStreamEvent =
-  | ServerGeminiChatCompressedEvent
-  | ServerGeminiCitationEvent
-  | ServerGeminiContentEvent
-  | ServerGeminiErrorEvent
-  | ServerGeminiFinishedEvent
-  | ServerGeminiLoopDetectedEvent
-  | ServerGeminiMaxSessionTurnsEvent
-  | ServerGeminiThoughtEvent
-  | ServerGeminiToolCallConfirmationEvent
-  | ServerGeminiToolCallRequestEvent
-  | ServerGeminiToolCallResponseEvent
-  | ServerGeminiUserCancelledEvent
-  | ServerGeminiRetryEvent
-  | ServerGeminiContextWindowWillOverflowEvent
-  | ServerGeminiInvalidStreamEvent;
+export type ServerKaiDexStreamEvent =
+  | ServerKaiDexChatCompressedEvent
+  | ServerKaiDexCitationEvent
+  | ServerKaiDexContentEvent
+  | ServerKaiDexErrorEvent
+  | ServerKaiDexFinishedEvent
+  | ServerKaiDexLoopDetectedEvent
+  | ServerKaiDexMaxSessionTurnsEvent
+  | ServerKaiDexThoughtEvent
+  | ServerKaiDexToolCallConfirmationEvent
+  | ServerKaiDexToolCallRequestEvent
+  | ServerKaiDexToolCallResponseEvent
+  | ServerKaiDexUserCancelledEvent
+  | ServerKaiDexRetryEvent;
 
 // A turn manages the agentic loop turn within the server context.
 export class Turn {
-  readonly pendingToolCalls: ToolCallRequestInfo[] = [];
+  pendingToolCalls: ToolCallRequestInfo[] = [];
   private debugResponses: GenerateContentResponse[] = [];
   private pendingCitations = new Set<string>();
   finishReason: FinishReason | undefined = undefined;
 
   constructor(
-    private readonly chat: GeminiChat,
+    private readonly chat: KaiDexChat,
     private readonly prompt_id: string,
   ) {}
   // The run method yields simpler events suitable for server logic
   async *run(
-    model: string,
     req: PartListUnion,
     signal: AbortSignal,
-  ): AsyncGenerator<ServerGeminiStreamEvent> {
+  ): AsyncGenerator<ServerKaiDexStreamEvent> {
     try {
       // Note: This assumes `sendMessageStream` yields events like
       // { type: StreamEventType.RETRY } or { type: StreamEventType.CHUNK, value: GenerateContentResponse }
       const responseStream = await this.chat.sendMessageStream(
-        model,
         {
-          message: req,
+          message: req as any,
           config: {
             abortSignal: signal,
           },
@@ -244,44 +228,72 @@ export class Turn {
       );
 
       for await (const streamEvent of responseStream) {
+        console.log(
+          streamEvent.type,
+        );
         if (signal?.aborted) {
-          yield { type: GeminiEventType.UserCancelled };
+          yield { type: KaiDexEventType.UserCancelled };
           return;
         }
 
         // Handle the new RETRY event
-        if (streamEvent.type === 'retry') {
-          yield { type: GeminiEventType.Retry };
+        if (streamEvent.type === "retry") {
+          yield { type: KaiDexEventType.Retry };
           continue; // Skip to the next event in the stream
         }
 
         // Assuming other events are chunks with a `value` property
         const resp = streamEvent.value as GenerateContentResponse;
+        console.log(
+          resp?.functionCalls?.length || 0,
+        );
         if (!resp) continue; // Skip if there's no response body
 
         this.debugResponses.push(resp);
 
         const thoughtPart = resp.candidates?.[0]?.content?.parts?.[0];
-        if (thoughtPart?.thought) {
-          const thought = parseThought(thoughtPart.text ?? '');
+        if ((thoughtPart as any)?.thought) {
+          // Thought always has a bold "subject" part enclosed in double asterisks
+          // (e.g., **Subject**). The rest of the string is considered the description.
+          const rawText = thoughtPart?.text ?? "";
+          const subjectStringMatches = rawText.match(/\*\*(.*?)\*\*/s);
+          const subject = subjectStringMatches
+            ? subjectStringMatches[1].trim()
+            : "";
+          const description = rawText.replace(/\*\*(.*?)\*\*/s, "").trim();
+          const thought: ThoughtSummary = {
+            subject,
+            description,
+          };
+
           yield {
-            type: GeminiEventType.Thought,
+            type: KaiDexEventType.Thought,
             value: thought,
           };
           continue;
         }
 
-        const text = getResponseText(resp);
+        const text = getResponseText(resp as any);
         if (text) {
-          yield { type: GeminiEventType.Content, value: text };
+          yield { type: KaiDexEventType.Content, value: text };
         }
 
         // Handle function calls (requesting tool execution)
         const functionCalls = resp.functionCalls ?? [];
+        console.log(
+          functionCalls.length,
+        );
         for (const fnCall of functionCalls) {
+          console.log(
+            fnCall.name,
+            "args:",
+            fnCall.args,
+          );
           const event = this.handlePendingFunctionCall(fnCall);
           if (event) {
             yield event;
+            console.log(
+            );
           }
         }
 
@@ -290,23 +302,23 @@ export class Turn {
         }
 
         // Check if response was truncated or stopped for various reasons
-        const finishReason = resp.candidates?.[0]?.finishReason;
+        const finishReason = resp.candidates?.[0]?.finishReason as any;
 
         // This is the key change: Only yield 'Finished' if there is a finishReason.
         if (finishReason) {
           if (this.pendingCitations.size > 0) {
             yield {
-              type: GeminiEventType.Citation,
-              value: `Citations:\n${[...this.pendingCitations].sort().join('\n')}`,
+              type: KaiDexEventType.Citation,
+              value: `Citations:\n${[...this.pendingCitations].sort().join("\n")}`,
             };
             this.pendingCitations.clear();
           }
 
-          this.finishReason = finishReason;
+          this.finishReason = finishReason as FinishReason;
           yield {
-            type: GeminiEventType.Finished,
+            type: KaiDexEventType.Finished,
             value: {
-              reason: finishReason,
+              reason: finishReason as FinishReason,
               usageMetadata: resp.usageMetadata,
             },
           };
@@ -314,13 +326,8 @@ export class Turn {
       }
     } catch (e) {
       if (signal.aborted) {
-        yield { type: GeminiEventType.UserCancelled };
+        yield { type: KaiDexEventType.UserCancelled };
         // Regular cancellation error, fail gracefully.
-        return;
-      }
-
-      if (e instanceof InvalidStreamError) {
-        yield { type: GeminiEventType.InvalidStream };
         return;
       }
 
@@ -329,21 +336,22 @@ export class Turn {
         throw error;
       }
 
+      const reqContent = createKaidexUserContent(req);
       const contextForReport = [
         ...this.chat.getHistory(/*curated*/ true),
-        createUserContent(req),
+        reqContent,
       ];
       await reportError(
         error,
-        'Error when talking to Gemini API',
+        "Error when talking to KaiDex API",
         contextForReport,
-        'Turn.run-sendMessageStream',
+        "Turn.run-sendMessageStream",
       );
       const status =
-        typeof error === 'object' &&
+        typeof error === "object" &&
         error !== null &&
-        'status' in error &&
-        typeof (error as { status: unknown }).status === 'number'
+        "status" in error &&
+        typeof (error as { status: unknown }).status === "number"
           ? (error as { status: number }).status
           : undefined;
       const structuredError: StructuredError = {
@@ -351,18 +359,18 @@ export class Turn {
         status,
       };
       await this.chat.maybeIncludeSchemaDepthContext(structuredError);
-      yield { type: GeminiEventType.Error, value: { error: structuredError } };
+      yield { type: KaiDexEventType.Error, value: { error: structuredError } };
       return;
     }
   }
 
   private handlePendingFunctionCall(
     fnCall: FunctionCall,
-  ): ServerGeminiStreamEvent | null {
+  ): ServerKaiDexStreamEvent | null {
     const callId =
       fnCall.id ??
       `${fnCall.name}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    const name = fnCall.name || 'undefined_tool_name';
+    const name = fnCall.name || "undefined_tool_name";
     const args = (fnCall.args || {}) as Record<string, unknown>;
 
     const toolCallRequest: ToolCallRequestInfo = {
@@ -376,18 +384,22 @@ export class Turn {
     this.pendingToolCalls.push(toolCallRequest);
 
     // Yield a request for the tool call, not the pending/confirming status
-    return { type: GeminiEventType.ToolCallRequest, value: toolCallRequest };
+    return { type: KaiDexEventType.ToolCallRequest, value: toolCallRequest };
   }
 
   getDebugResponses(): GenerateContentResponse[] {
     return this.debugResponses;
   }
+
+  clearPendingToolCalls(): void {
+    this.pendingToolCalls.length = 0;
+  }
 }
 
 function getCitations(resp: GenerateContentResponse): string[] {
   return (resp.candidates?.[0]?.citationMetadata?.citations ?? [])
-    .filter((citation) => citation.uri !== undefined)
-    .map((citation) => {
+    .filter((citation: any) => citation.uri !== undefined)
+    .map((citation: any) => {
       if (citation.title) {
         return `(${citation.title}) ${citation.uri}`;
       }

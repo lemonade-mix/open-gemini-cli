@@ -9,7 +9,7 @@ if (process.env.NO_COLOR !== undefined) {
   delete process.env.NO_COLOR;
 }
 
-import { setSimulate429 } from './src/utils/testUtils.js';
+import { setSimulate429 } from "./src/utils/testUtils.js";
 
 // Disable 429 simulation globally for all tests
 setSimulate429(false);

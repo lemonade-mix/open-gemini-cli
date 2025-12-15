@@ -4,22 +4,22 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type React from 'react';
-import { useCallback } from 'react';
-import { Box, Text } from 'ink';
-import { theme } from '../semantic-colors.js';
-import { RadioButtonSelect } from '../components/shared/RadioButtonSelect.js';
-import type { LoadedSettings } from '../../config/settings.js';
-import { SettingScope } from '../../config/settings.js';
+import type React from "react";
+import { useCallback, useEffect } from "react";
+import { Box, Text } from "ink";
+import { Colors } from "../colors.js";
+import { RadioButtonSelect } from "../components/shared/RadioButtonSelect.js";
+import type { LoadedSettings } from "../../config/settings.js";
+import { SettingScope } from "../../config/settings.js";
 import {
   AuthType,
   clearCachedCredentialFile,
   type Config,
-} from '@google/gemini-cli-core';
-import { useKeypress } from '../hooks/useKeypress.js';
-import { AuthState } from '../types.js';
-import { runExitCleanup } from '../../utils/cleanup.js';
-import { validateAuthMethodWithSettings } from './useAuth.js';
+} from "@google/kaidex-cli-core";
+import { useKeypress } from "../hooks/useKeypress.js";
+import { AuthState } from "../types.js";
+import { runExitCleanup } from "../../utils/cleanup.js";
+import { validateAuthMethodWithSettings } from "./useAuth.js";
 
 interface AuthDialogProps {
   config: Config;
@@ -36,31 +36,32 @@ export function AuthDialog({
   authError,
   onAuthError,
 }: AuthDialogProps): React.JSX.Element {
+  const bypassAuth = process.env["BYPASS_AUTH"] === "true";
+
+  useEffect(() => {
+    if (bypassAuth) {
+      setAuthState(AuthState.Authenticated);
+    }
+  }, [bypassAuth, setAuthState]);
+
   let items = [
     {
-      label: 'Login with Google',
+      label: "Login with KaiDex",
       value: AuthType.LOGIN_WITH_GOOGLE,
-      key: AuthType.LOGIN_WITH_GOOGLE,
     },
-    ...(process.env['CLOUD_SHELL'] === 'true'
+    ...(process.env["CLOUD_SHELL"] === "true"
       ? [
           {
-            label: 'Use Cloud Shell user credentials',
+            label: "Use Cloud Shell user credentials",
             value: AuthType.CLOUD_SHELL,
-            key: AuthType.CLOUD_SHELL,
           },
         ]
       : []),
     {
-      label: 'Use Gemini API Key',
+      label: "Use KaiDex API Key",
       value: AuthType.USE_GEMINI,
-      key: AuthType.USE_GEMINI,
     },
-    {
-      label: 'Vertex AI',
-      value: AuthType.USE_VERTEX_AI,
-      key: AuthType.USE_VERTEX_AI,
-    },
+    { label: "Vertex AI", value: AuthType.USE_VERTEX_AI },
   ];
 
   if (settings.merged.security?.auth?.enforcedType) {
@@ -70,7 +71,7 @@ export function AuthDialog({
   }
 
   let defaultAuthType = null;
-  const defaultAuthTypeEnv = process.env['GEMINI_DEFAULT_AUTH_TYPE'];
+  const defaultAuthTypeEnv = process.env["GEMINI_DEFAULT_AUTH_TYPE"];
   if (
     defaultAuthTypeEnv &&
     Object.values(AuthType).includes(defaultAuthTypeEnv as AuthType)
@@ -87,7 +88,7 @@ export function AuthDialog({
       return item.value === defaultAuthType;
     }
 
-    if (process.env['GEMINI_API_KEY']) {
+    if (process.env["GEMINI_API_KEY"]) {
       return item.value === AuthType.USE_GEMINI;
     }
 
@@ -102,7 +103,7 @@ export function AuthDialog({
       if (authType) {
         await clearCachedCredentialFile();
 
-        settings.setValue(scope, 'security.auth.selectedType', authType);
+        settings.setValue(scope, "security.auth.selectedType", authType);
         if (
           authType === AuthType.LOGIN_WITH_GOOGLE &&
           config.isBrowserLaunchSuppressed()
@@ -111,7 +112,7 @@ export function AuthDialog({
           console.log(
             `
 ----------------------------------------------------------------
-Logging in with Google... Please restart Gemini CLI to continue.
+Logging in with KaiDex... Please restart KaiDex CLI to continue.
 ----------------------------------------------------------------
             `,
           );
@@ -134,7 +135,7 @@ Logging in with Google... Please restart Gemini CLI to continue.
 
   useKeypress(
     (key) => {
-      if (key.name === 'escape') {
+      if (key.name === "escape") {
         // Prevent exit if there is an error message.
         // This means they user is not authenticated yet.
         if (authError) {
@@ -143,31 +144,33 @@ Logging in with Google... Please restart Gemini CLI to continue.
         if (settings.merged.security?.auth?.selectedType === undefined) {
           // Prevent exiting if no auth method is set
           onAuthError(
-            'You must select an auth method to proceed. Press Ctrl+C twice to exit.',
+            "You must select an auth method to proceed. Press Ctrl+C twice to exit.",
           );
           return;
         }
         onSelect(undefined, SettingScope.User);
       }
     },
-    { isActive: true },
+    { isActive: !bypassAuth },
   );
+
+  if (bypassAuth) {
+    return (
+      <Text>🚀 KaiDex: Authentication bypassed - ready for local LLM</Text>
+    );
+  }
 
   return (
     <Box
       borderStyle="round"
-      borderColor={theme.border.default}
+      borderColor={Colors.Gray}
       flexDirection="column"
       padding={1}
       width="100%"
     >
-      <Text bold color={theme.text.primary}>
-        Get started
-      </Text>
+      <Text bold>Get started</Text>
       <Box marginTop={1}>
-        <Text color={theme.text.primary}>
-          How would you like to authenticate for this project?
-        </Text>
+        <Text>How would you like to authenticate for this project?</Text>
       </Box>
       <Box marginTop={1}>
         <RadioButtonSelect
@@ -178,23 +181,17 @@ Logging in with Google... Please restart Gemini CLI to continue.
       </Box>
       {authError && (
         <Box marginTop={1}>
-          <Text color={theme.status.error}>{authError}</Text>
+          <Text color={Colors.AccentRed}>{authError}</Text>
         </Box>
       )}
       <Box marginTop={1}>
-        <Text color={theme.text.secondary}>(Use Enter to select)</Text>
+        <Text color={Colors.Gray}>(Use Enter to select)</Text>
       </Box>
       <Box marginTop={1}>
-        <Text color={theme.text.primary}>
-          Terms of Services and Privacy Notice for Gemini CLI
-        </Text>
+        <Text>Terms of Services and Privacy Notice for KaiDex CLI</Text>
       </Box>
       <Box marginTop={1}>
-        <Text color={theme.text.link}>
-          {
-            'https://github.com/google-gemini/gemini-cli/blob/main/docs/tos-privacy.md'
-          }
-        </Text>
+        <Text color={Colors.AccentBlue}>{"https://limkc.com/tos"}</Text>
       </Box>
     </Box>
   );

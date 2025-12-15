@@ -4,15 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type React from 'react';
-import { Box, Text } from 'ink';
-import { theme } from '../semantic-colors.js';
+import type React from "react";
+import { Box, Text } from "ink";
+import { Colors } from "../colors.js";
 
 export const ShellModeIndicator: React.FC = () => (
   <Box>
-    <Text color={theme.ui.symbol}>
+    <Text color={Colors.AccentYellow}>
       shell mode enabled
-      <Text color={theme.text.secondary}> (esc to disable)</Text>
+      <Text color={Colors.Gray}> (esc to disable)</Text>
     </Text>
   </Box>
 );

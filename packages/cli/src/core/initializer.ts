@@ -4,22 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {
-  IdeClient,
-  IdeConnectionEvent,
-  IdeConnectionType,
-  logIdeConnection,
-  type Config,
-} from '@google/gemini-cli-core';
-import { type LoadedSettings } from '../config/settings.js';
-import { performInitialAuth } from './auth.js';
-import { validateTheme } from './theme.js';
+import { type Config } from "@google/kaidex-cli-core";
+import { type LoadedSettings } from "../config/settings.js";
+import { performInitialAuth } from "./auth.js";
+import { validateTheme } from "./theme.js";
 
 export interface InitializationResult {
   authError: string | null;
   themeError: string | null;
   shouldOpenAuthDialog: boolean;
-  geminiMdFileCount: number;
+  kaidexMdFileCount: number;
 }
 
 /**
@@ -42,16 +36,10 @@ export async function initializeApp(
   const shouldOpenAuthDialog =
     settings.merged.security?.auth?.selectedType === undefined || !!authError;
 
-  if (config.getIdeMode()) {
-    const ideClient = await IdeClient.getInstance();
-    await ideClient.connect();
-    logIdeConnection(config, new IdeConnectionEvent(IdeConnectionType.START));
-  }
-
   return {
     authError,
     themeError,
     shouldOpenAuthDialog,
-    geminiMdFileCount: config.getGeminiMdFileCount(),
+    kaidexMdFileCount: config.getKaiDexMdFileCount(),
   };
 }

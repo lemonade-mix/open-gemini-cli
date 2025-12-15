@@ -8,7 +8,8 @@ import {
   type AuthType,
   type Config,
   getErrorMessage,
-} from '@google/gemini-cli-core';
+  AuthType as AuthTypeEnum,
+} from "@google/kaidex-cli-core";
 
 /**
  * Handles the initial authentication flow.
@@ -20,6 +21,16 @@ export async function performInitialAuth(
   config: Config,
   authType: AuthType | undefined,
 ): Promise<string | null> {
+  // Bypass authentication for local LLM usage
+  if (process.env["BYPASS_AUTH"] === "true") {
+    try {
+      await config.refreshAuth(AuthTypeEnum.LOCAL_LLM);
+    } catch (e) {
+      return `Failed to initialize local LLM: ${getErrorMessage(e)}`;
+    }
+    return null;
+  }
+
   if (!authType) {
     return null;
   }

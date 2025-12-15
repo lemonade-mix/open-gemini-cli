@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
+import React from "react";
 
 // Hook to return state, state setter, and ref to most up-to-date value of state.
 // We need this in order to setState and reference the updated state multiple
@@ -15,13 +15,13 @@ export const useStateAndRef = <
 >(
   initialValue: T,
 ) => {
-  const [state, setState] = React.useState<T>(initialValue);
+  const [_, setState] = React.useState<T>(initialValue);
   const ref = React.useRef<T>(initialValue);
 
   const setStateInternal = React.useCallback<typeof setState>(
     (newStateOrCallback) => {
       let newValue: T;
-      if (typeof newStateOrCallback === 'function') {
+      if (typeof newStateOrCallback === "function") {
         newValue = newStateOrCallback(ref.current);
       } else {
         newValue = newStateOrCallback;
@@ -32,5 +32,5 @@ export const useStateAndRef = <
     [],
   );
 
-  return [state, ref, setStateInternal] as const;
+  return [ref, setStateInternal] as const;
 };

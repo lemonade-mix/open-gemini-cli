@@ -4,18 +4,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import * as fs from 'node:fs';
-import * as path from 'node:path';
+import * as fs from "node:fs";
+import * as path from "node:path";
 import type {
   CommandContext,
   SlashCommand,
   SlashCommandActionReturn,
-} from './types.js';
-import { CommandKind } from './types.js';
+} from "./types.js";
+import { CommandKind } from "./types.js";
 
 export const initCommand: SlashCommand = {
-  name: 'init',
-  description: 'Analyzes the project and creates a tailored GEMINI.md file.',
+  name: "init",
+  description: "Analyzes the project and creates a tailored KAIDEX.md file.",
   kind: CommandKind.BUILT_IN,
   action: async (
     context: CommandContext,
@@ -23,38 +23,38 @@ export const initCommand: SlashCommand = {
   ): Promise<SlashCommandActionReturn> => {
     if (!context.services.config) {
       return {
-        type: 'message',
-        messageType: 'error',
-        content: 'Configuration not available.',
+        type: "message",
+        messageType: "error",
+        content: "Configuration not available.",
       };
     }
     const targetDir = context.services.config.getTargetDir();
-    const geminiMdPath = path.join(targetDir, 'GEMINI.md');
+    const geminiMdPath = path.join(targetDir, "KAIDEX.md");
 
     if (fs.existsSync(geminiMdPath)) {
       return {
-        type: 'message',
-        messageType: 'info',
+        type: "message",
+        messageType: "info",
         content:
-          'A GEMINI.md file already exists in this directory. No changes were made.',
+          "A KAIDEX.md file already exists in this directory. No changes were made.",
       };
     }
 
-    // Create an empty GEMINI.md file
-    fs.writeFileSync(geminiMdPath, '', 'utf8');
+    // Create an empty KAIDEX.md file
+    fs.writeFileSync(geminiMdPath, "", "utf8");
 
     context.ui.addItem(
       {
-        type: 'info',
-        text: 'Empty GEMINI.md created. Now analyzing the project to populate it.',
+        type: "info",
+        text: "Empty KAIDEX.md created. Now analyzing the project to populate it.",
       },
       Date.now(),
     );
 
     return {
-      type: 'submit_prompt',
+      type: "submit_prompt",
       content: `
-You are an AI agent that brings the power of Gemini directly into the terminal. Your task is to analyze the current directory and generate a comprehensive GEMINI.md file to be used as instructional context for future interactions.
+You are an AI agent that brings the power of KaiDex directly into the terminal. Your task is to analyze the current directory and generate a comprehensive KAIDEX.md file to be used as instructional context for future interactions.
 
 **Analysis Process:**
 
@@ -70,7 +70,7 @@ You are an AI agent that brings the power of Gemini directly into the terminal. 
     *   **Code Project:** Look for clues like \`package.json\`, \`requirements.txt\`, \`pom.xml\`, \`go.mod\`, \`Cargo.toml\`, \`build.gradle\`, or a \`src\` directory. If you find them, this is likely a software project.
     *   **Non-Code Project:** If you don't find code-related files, this might be a directory for documentation, research papers, notes, or something else.
 
-**GEMINI.md Content Generation:**
+**KAIDEX.md Content Generation:**
 
 **For a Code Project:**
 
@@ -86,7 +86,7 @@ You are an AI agent that brings the power of Gemini directly into the terminal. 
 
 **Final Output:**
 
-Write the complete content to the \`GEMINI.md\` file. The output must be well-formatted Markdown.
+Write the complete content to the \`KAIDEX.md\` file. The output must be well-formatted Markdown.
 `,
     };
   },

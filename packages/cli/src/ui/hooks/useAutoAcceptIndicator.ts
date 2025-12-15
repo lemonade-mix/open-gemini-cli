@@ -4,22 +4,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect } from 'react';
-import { ApprovalMode, type Config } from '@google/gemini-cli-core';
-import { useKeypress } from './useKeypress.js';
-import type { HistoryItemWithoutId } from '../types.js';
-import { MessageType } from '../types.js';
+import { useState, useEffect } from "react";
+import { ApprovalMode, type Config } from "@google/kaidex-cli-core";
+import { useKeypress } from "./useKeypress.js";
+import type { HistoryItemWithoutId } from "../types.js";
+import { MessageType } from "../types.js";
 
 export interface UseAutoAcceptIndicatorArgs {
   config: Config;
-  addItem?: (item: HistoryItemWithoutId, timestamp: number) => void;
-  onApprovalModeChange?: (mode: ApprovalMode) => void;
+  addItem: (item: HistoryItemWithoutId, timestamp: number) => void;
 }
 
 export function useAutoAcceptIndicator({
   config,
   addItem,
-  onApprovalModeChange,
 }: UseAutoAcceptIndicatorArgs): ApprovalMode {
   const currentConfigValue = config.getApprovalMode();
   const [showAutoAcceptIndicator, setShowAutoAcceptIndicator] =
@@ -33,12 +31,12 @@ export function useAutoAcceptIndicator({
     (key) => {
       let nextApprovalMode: ApprovalMode | undefined;
 
-      if (key.ctrl && key.name === 'y') {
+      if (key.ctrl && key.name === "y") {
         nextApprovalMode =
           config.getApprovalMode() === ApprovalMode.YOLO
             ? ApprovalMode.DEFAULT
             : ApprovalMode.YOLO;
-      } else if (key.shift && key.name === 'tab') {
+      } else if (key.shift && key.name === "tab") {
         nextApprovalMode =
           config.getApprovalMode() === ApprovalMode.AUTO_EDIT
             ? ApprovalMode.DEFAULT
@@ -50,19 +48,14 @@ export function useAutoAcceptIndicator({
           config.setApprovalMode(nextApprovalMode);
           // Update local state immediately for responsiveness
           setShowAutoAcceptIndicator(nextApprovalMode);
-
-          // Notify the central handler about the approval mode change
-          onApprovalModeChange?.(nextApprovalMode);
         } catch (e) {
-          if (addItem) {
-            addItem(
-              {
-                type: MessageType.INFO,
-                text: (e as Error).message,
-              },
-              Date.now(),
-            );
-          }
+          addItem(
+            {
+              type: MessageType.INFO,
+              text: (e as Error).message,
+            },
+            Date.now(),
+          );
         }
       }
     },

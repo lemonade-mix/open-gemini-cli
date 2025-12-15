@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { renderWithProviders } from '../../test-utils/render.js';
+import { renderWithProviders } from "../../test-utils/render.js";
 import {
   describe,
   it,
@@ -13,47 +13,47 @@ import {
   beforeEach,
   afterEach,
   type Mock,
-} from 'vitest';
-import { AuthDialog } from './AuthDialog.js';
-import { AuthType, type Config } from '@google/gemini-cli-core';
-import type { LoadedSettings } from '../../config/settings.js';
-import { SettingScope } from '../../config/settings.js';
-import { AuthState } from '../types.js';
-import { RadioButtonSelect } from '../components/shared/RadioButtonSelect.js';
-import { useKeypress } from '../hooks/useKeypress.js';
-import { validateAuthMethodWithSettings } from './useAuth.js';
-import { runExitCleanup } from '../../utils/cleanup.js';
-import { clearCachedCredentialFile } from '@google/gemini-cli-core';
-import { Text } from 'ink';
+} from "vitest";
+import { AuthDialog } from "./AuthDialog.js";
+import { AuthType, type Config } from "@google/kaidex-cli-core";
+import type { LoadedSettings } from "../../config/settings.js";
+import { SettingScope } from "../../config/settings.js";
+import { AuthState } from "../types.js";
+import { RadioButtonSelect } from "../components/shared/RadioButtonSelect.js";
+import { useKeypress } from "../hooks/useKeypress.js";
+import { validateAuthMethodWithSettings } from "./useAuth.js";
+import { runExitCleanup } from "../../utils/cleanup.js";
+import { clearCachedCredentialFile } from "@google/kaidex-cli-core";
+import { Text } from "ink";
 
 // Mocks
-vi.mock('@google/gemini-cli-core', async (importOriginal) => {
+vi.mock("@google/kaidex-cli-core", async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('@google/gemini-cli-core')>();
+    await importOriginal<typeof import("@google/kaidex-cli-core")>();
   return {
     ...actual,
     clearCachedCredentialFile: vi.fn(),
   };
 });
 
-vi.mock('../../utils/cleanup.js', () => ({
+vi.mock("../../utils/cleanup.js", () => ({
   runExitCleanup: vi.fn(),
 }));
 
-vi.mock('./useAuth.js', () => ({
+vi.mock("./useAuth.js", () => ({
   validateAuthMethodWithSettings: vi.fn(),
 }));
 
-vi.mock('../hooks/useKeypress.js', () => ({
+vi.mock("../hooks/useKeypress.js", () => ({
   useKeypress: vi.fn(),
 }));
 
-vi.mock('../components/shared/RadioButtonSelect.js', () => ({
+vi.mock("../components/shared/RadioButtonSelect.js", () => ({
   RadioButtonSelect: vi.fn(({ items, initialIndex }) => (
     <>
       {items.map((item: { value: string; label: string }, index: number) => (
         <Text key={item.value}>
-          {index === initialIndex ? '(selected)' : '(not selected)'}{' '}
+          {index === initialIndex ? "(selected)" : "(not selected)"}{" "}
           {item.label}
         </Text>
       ))}
@@ -67,7 +67,7 @@ const mockedValidateAuthMethod = validateAuthMethodWithSettings as Mock;
 const mockedRunExitCleanup = runExitCleanup as Mock;
 const mockedClearCachedCredentialFile = clearCachedCredentialFile as Mock;
 
-describe('AuthDialog', () => {
+describe("AuthDialog", () => {
   let props: {
     config: Config;
     settings: LoadedSettings;
@@ -103,18 +103,17 @@ describe('AuthDialog', () => {
     process.env = originalEnv;
   });
 
-  it('shows Cloud Shell option when in Cloud Shell environment', () => {
-    process.env['CLOUD_SHELL'] = 'true';
+  it("shows Cloud Shell option when in Cloud Shell environment", () => {
+    process.env["CLOUD_SHELL"] = "true";
     renderWithProviders(<AuthDialog {...props} />);
     const items = mockedRadioButtonSelect.mock.calls[0][0].items;
     expect(items).toContainEqual({
-      label: 'Use Cloud Shell user credentials',
+      label: "Use Cloud Shell user credentials",
       value: AuthType.CLOUD_SHELL,
-      key: AuthType.CLOUD_SHELL,
     });
   });
 
-  it('filters auth types when enforcedType is set', () => {
+  it("filters auth types when enforcedType is set", () => {
     props.settings.merged.security!.auth!.enforcedType = AuthType.USE_GEMINI;
     renderWithProviders(<AuthDialog {...props} />);
     const items = mockedRadioButtonSelect.mock.calls[0][0].items;
@@ -122,43 +121,43 @@ describe('AuthDialog', () => {
     expect(items[0].value).toBe(AuthType.USE_GEMINI);
   });
 
-  it('sets initial index to 0 when enforcedType is set', () => {
+  it("sets initial index to 0 when enforcedType is set", () => {
     props.settings.merged.security!.auth!.enforcedType = AuthType.USE_GEMINI;
     renderWithProviders(<AuthDialog {...props} />);
     const { initialIndex } = mockedRadioButtonSelect.mock.calls[0][0];
     expect(initialIndex).toBe(0);
   });
 
-  it('selects initial auth type from settings', () => {
+  it("selects initial auth type from settings", () => {
     props.settings.merged.security!.auth!.selectedType = AuthType.USE_VERTEX_AI;
     renderWithProviders(<AuthDialog {...props} />);
     const { items, initialIndex } = mockedRadioButtonSelect.mock.calls[0][0];
     expect(items[initialIndex].value).toBe(AuthType.USE_VERTEX_AI);
   });
 
-  it('selects initial auth type from GEMINI_DEFAULT_AUTH_TYPE env var', () => {
-    process.env['GEMINI_DEFAULT_AUTH_TYPE'] = AuthType.USE_GEMINI;
+  it("selects initial auth type from GEMINI_DEFAULT_AUTH_TYPE env var", () => {
+    process.env["GEMINI_DEFAULT_AUTH_TYPE"] = AuthType.USE_GEMINI;
     renderWithProviders(<AuthDialog {...props} />);
     const { items, initialIndex } = mockedRadioButtonSelect.mock.calls[0][0];
     expect(items[initialIndex].value).toBe(AuthType.USE_GEMINI);
   });
 
-  it('selects initial auth type from GEMINI_API_KEY env var', () => {
-    process.env['GEMINI_API_KEY'] = 'test-key';
+  it("selects initial auth type from GEMINI_API_KEY env var", () => {
+    process.env["GEMINI_API_KEY"] = "test-key";
     renderWithProviders(<AuthDialog {...props} />);
     const { items, initialIndex } = mockedRadioButtonSelect.mock.calls[0][0];
     expect(items[initialIndex].value).toBe(AuthType.USE_GEMINI);
   });
 
-  it('defaults to Login with Google', () => {
+  it("defaults to Login with Google", () => {
     renderWithProviders(<AuthDialog {...props} />);
     const { items, initialIndex } = mockedRadioButtonSelect.mock.calls[0][0];
     expect(items[initialIndex].value).toBe(AuthType.LOGIN_WITH_GOOGLE);
   });
 
-  describe('handleAuthSelect', () => {
-    it('calls onAuthError if validation fails', () => {
-      mockedValidateAuthMethod.mockReturnValue('Invalid method');
+  describe("handleAuthSelect", () => {
+    it("calls onAuthError if validation fails", () => {
+      mockedValidateAuthMethod.mockReturnValue("Invalid method");
       renderWithProviders(<AuthDialog {...props} />);
       const { onSelect: handleAuthSelect } =
         mockedRadioButtonSelect.mock.calls[0][0];
@@ -168,11 +167,11 @@ describe('AuthDialog', () => {
         AuthType.USE_GEMINI,
         props.settings,
       );
-      expect(props.onAuthError).toHaveBeenCalledWith('Invalid method');
+      expect(props.onAuthError).toHaveBeenCalledWith("Invalid method");
       expect(props.settings.setValue).not.toHaveBeenCalled();
     });
 
-    it('calls onSelect if validation passes', async () => {
+    it("calls onSelect if validation passes", async () => {
       mockedValidateAuthMethod.mockReturnValue(null);
       renderWithProviders(<AuthDialog {...props} />);
       const { onSelect: handleAuthSelect } =
@@ -187,7 +186,7 @@ describe('AuthDialog', () => {
       expect(mockedClearCachedCredentialFile).toHaveBeenCalled();
       expect(props.settings.setValue).toHaveBeenCalledWith(
         SettingScope.User,
-        'security.auth.selectedType',
+        "security.auth.selectedType",
         AuthType.USE_GEMINI,
       );
       expect(props.setAuthState).toHaveBeenCalledWith(
@@ -195,11 +194,11 @@ describe('AuthDialog', () => {
       );
     });
 
-    it('exits process for Login with Google when browser is suppressed', async () => {
+    it("exits process for Login with Google when browser is suppressed", async () => {
       const exitSpy = vi
-        .spyOn(process, 'exit')
+        .spyOn(process, "exit")
         .mockImplementation(() => undefined as never);
-      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
       vi.mocked(props.config.isBrowserLaunchSuppressed).mockReturnValue(true);
       mockedValidateAuthMethod.mockReturnValue(null);
 
@@ -210,7 +209,7 @@ describe('AuthDialog', () => {
 
       expect(mockedRunExitCleanup).toHaveBeenCalled();
       expect(logSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Please restart Gemini CLI'),
+        expect.stringContaining("Please restart KaiDex CLI"),
       );
       expect(exitSpy).toHaveBeenCalledWith(0);
 
@@ -219,37 +218,37 @@ describe('AuthDialog', () => {
     });
   });
 
-  it('displays authError when provided', () => {
-    props.authError = 'Something went wrong';
+  it("displays authError when provided", () => {
+    props.authError = "Something went wrong";
     const { lastFrame } = renderWithProviders(<AuthDialog {...props} />);
-    expect(lastFrame()).toContain('Something went wrong');
+    expect(lastFrame()).toContain("Something went wrong");
   });
 
-  describe('useKeypress', () => {
-    it('does nothing on escape if authError is present', () => {
-      props.authError = 'Some error';
+  describe("useKeypress", () => {
+    it("does nothing on escape if authError is present", () => {
+      props.authError = "Some error";
       renderWithProviders(<AuthDialog {...props} />);
       const keypressHandler = mockedUseKeypress.mock.calls[0][0];
-      keypressHandler({ name: 'escape' });
+      keypressHandler({ name: "escape" });
       expect(props.onAuthError).not.toHaveBeenCalled();
       expect(props.setAuthState).not.toHaveBeenCalled();
     });
 
-    it('calls onAuthError on escape if no auth method is set', () => {
+    it("calls onAuthError on escape if no auth method is set", () => {
       props.settings.merged.security!.auth!.selectedType = undefined;
       renderWithProviders(<AuthDialog {...props} />);
       const keypressHandler = mockedUseKeypress.mock.calls[0][0];
-      keypressHandler({ name: 'escape' });
+      keypressHandler({ name: "escape" });
       expect(props.onAuthError).toHaveBeenCalledWith(
-        'You must select an auth method to proceed. Press Ctrl+C twice to exit.',
+        "You must select an auth method to proceed. Press Ctrl+C twice to exit.",
       );
     });
 
-    it('calls onSelect(undefined) on escape if auth method is set', () => {
+    it("calls onSelect(undefined) on escape if auth method is set", () => {
       props.settings.merged.security!.auth!.selectedType = AuthType.USE_GEMINI;
       renderWithProviders(<AuthDialog {...props} />);
       const keypressHandler = mockedUseKeypress.mock.calls[0][0];
-      keypressHandler({ name: 'escape' });
+      keypressHandler({ name: "escape" });
       expect(props.setAuthState).toHaveBeenCalledWith(
         AuthState.Unauthenticated,
       );

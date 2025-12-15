@@ -4,51 +4,28 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ContentGenerator } from '../core/contentGenerator.js';
-import { AuthType } from '../core/contentGenerator.js';
-import { getOauthClient } from './oauth2.js';
-import { setupUser } from './setup.js';
-import type { HttpOptions } from './server.js';
-import { CodeAssistServer } from './server.js';
-import type { Config } from '../config/config.js';
-import { LoggingContentGenerator } from '../core/loggingContentGenerator.js';
+import type { ContentGenerator } from "../core/contentGenerator.js";
+import { AuthType } from "../core/contentGenerator.js";
+import type { HttpOptions } from "./server.js";
+import { CodeAssistServer } from "./server.js";
+import type { Config } from "../config/config.js";
 
 export async function createCodeAssistContentGenerator(
-  httpOptions: HttpOptions,
-  authType: AuthType,
+  _httpOptions: HttpOptions,
+  _authType: AuthType,
   config: Config,
-  sessionId?: string,
+  _sessionId?: string,
 ): Promise<ContentGenerator> {
-  if (
-    authType === AuthType.LOGIN_WITH_GOOGLE ||
-    authType === AuthType.CLOUD_SHELL
-  ) {
-    const authClient = await getOauthClient(authType, config);
-    const userData = await setupUser(authClient);
-    return new CodeAssistServer(
-      authClient,
-      userData.projectId,
-      httpOptions,
-      sessionId,
-      userData.userTier,
-    );
-  }
-
-  throw new Error(`Unsupported authType: ${authType}`);
+  // STUB: Never use Google Code Assist - always return local LLM generator
+  const { createContentGenerator } = await import(
+    "../core/contentGenerator.js"
+  );
+  return createContentGenerator(config);
 }
 
 export function getCodeAssistServer(
-  config: Config,
+  _config: Config,
 ): CodeAssistServer | undefined {
-  let server = config.getContentGenerator();
-
-  // Unwrap LoggingContentGenerator if present
-  if (server instanceof LoggingContentGenerator) {
-    server = server.getWrapped();
-  }
-
-  if (!(server instanceof CodeAssistServer)) {
-    return undefined;
-  }
-  return server;
+  // STUB: Never return Google Code Assist server - always undefined
+  return undefined;
 }

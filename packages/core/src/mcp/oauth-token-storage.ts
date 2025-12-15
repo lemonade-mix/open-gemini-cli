@@ -4,31 +4,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { promises as fs } from 'node:fs';
-import * as path from 'node:path';
-import { Storage } from '../config/storage.js';
-import { getErrorMessage } from '../utils/errors.js';
+import { promises as fs } from "node:fs";
+import * as path from "node:path";
+import { Storage } from "../config/storage.js";
+import { getErrorMessage } from "../utils/errors.js";
 import type {
   OAuthToken,
   OAuthCredentials,
   TokenStorage,
-} from './token-storage/types.js';
-import { HybridTokenStorage } from './token-storage/hybrid-token-storage.js';
-import {
-  DEFAULT_SERVICE_NAME,
-  FORCE_ENCRYPTED_FILE_ENV_VAR,
-} from './token-storage/index.js';
+} from "./token-storage/types.js";
 
 /**
  * Class for managing MCP OAuth token storage and retrieval.
  */
 export class MCPOAuthTokenStorage implements TokenStorage {
-  private readonly hybridTokenStorage = new HybridTokenStorage(
-    DEFAULT_SERVICE_NAME,
-  );
-  private readonly useEncryptedFile =
-    process.env[FORCE_ENCRYPTED_FILE_ENV_VAR] === 'true';
-
   /**
    * Get the path to the token storage file.
    *
@@ -52,14 +41,11 @@ export class MCPOAuthTokenStorage implements TokenStorage {
    * @returns A map of server names to credentials
    */
   async getAllCredentials(): Promise<Map<string, OAuthCredentials>> {
-    if (this.useEncryptedFile) {
-      return this.hybridTokenStorage.getAllCredentials();
-    }
     const tokenMap = new Map<string, OAuthCredentials>();
 
     try {
       const tokenFile = this.getTokenFilePath();
-      const data = await fs.readFile(tokenFile, 'utf-8');
+      const data = await fs.readFile(tokenFile, "utf-8");
       const tokens = JSON.parse(data) as OAuthCredentials[];
 
       for (const credential of tokens) {
@@ -67,7 +53,7 @@ export class MCPOAuthTokenStorage implements TokenStorage {
       }
     } catch (error) {
       // File doesn't exist or is invalid, return empty map
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
         console.error(
           `Failed to load MCP OAuth tokens: ${getErrorMessage(error)}`,
         );
@@ -78,17 +64,11 @@ export class MCPOAuthTokenStorage implements TokenStorage {
   }
 
   async listServers(): Promise<string[]> {
-    if (this.useEncryptedFile) {
-      return this.hybridTokenStorage.listServers();
-    }
     const tokens = await this.getAllCredentials();
     return Array.from(tokens.keys());
   }
 
   async setCredentials(credentials: OAuthCredentials): Promise<void> {
-    if (this.useEncryptedFile) {
-      return this.hybridTokenStorage.setCredentials(credentials);
-    }
     const tokens = await this.getAllCredentials();
     tokens.set(credentials.serverName, credentials);
 
@@ -136,9 +116,6 @@ export class MCPOAuthTokenStorage implements TokenStorage {
       updatedAt: Date.now(),
     };
 
-    if (this.useEncryptedFile) {
-      return this.hybridTokenStorage.setCredentials(credential);
-    }
     await this.setCredentials(credential);
   }
 
@@ -149,9 +126,6 @@ export class MCPOAuthTokenStorage implements TokenStorage {
    * @returns The stored credentials or null if not found
    */
   async getCredentials(serverName: string): Promise<OAuthCredentials | null> {
-    if (this.useEncryptedFile) {
-      return this.hybridTokenStorage.getCredentials(serverName);
-    }
     const tokens = await this.getAllCredentials();
     return tokens.get(serverName) || null;
   }
@@ -162,9 +136,6 @@ export class MCPOAuthTokenStorage implements TokenStorage {
    * @param serverName The name of the MCP server
    */
   async deleteCredentials(serverName: string): Promise<void> {
-    if (this.useEncryptedFile) {
-      return this.hybridTokenStorage.deleteCredentials(serverName);
-    }
     const tokens = await this.getAllCredentials();
 
     if (tokens.delete(serverName)) {
@@ -208,14 +179,11 @@ export class MCPOAuthTokenStorage implements TokenStorage {
    * Clear all stored MCP OAuth tokens.
    */
   async clearAll(): Promise<void> {
-    if (this.useEncryptedFile) {
-      return this.hybridTokenStorage.clearAll();
-    }
     try {
       const tokenFile = this.getTokenFilePath();
       await fs.unlink(tokenFile);
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
         console.error(
           `Failed to clear MCP OAuth tokens: ${getErrorMessage(error)}`,
         );

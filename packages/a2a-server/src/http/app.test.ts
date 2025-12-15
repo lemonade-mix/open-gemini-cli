@@ -4,19 +4,19 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { Config } from '@google/gemini-cli-core';
+import type { Config } from "@google/kaidex-cli-core";
 import {
-  GeminiEventType,
+  KaiDexEventType,
   ApprovalMode,
   type ToolCallConfirmationDetails,
-} from '@google/gemini-cli-core';
+} from "@google/kaidex-cli-core";
 import type {
   TaskStatusUpdateEvent,
   SendStreamingMessageSuccessResponse,
-} from '@a2a-js/sdk';
-import type express from 'express';
-import type { Server } from 'node:http';
-import request from 'supertest';
+} from "@a2a-js/sdk";
+import type express from "express";
+import type { Server } from "node:http";
+import request from "supertest";
 import {
   afterAll,
   afterEach,
@@ -26,15 +26,15 @@ import {
   expect,
   it,
   vi,
-} from 'vitest';
-import { createApp } from './app.js';
+} from "vitest";
+import { createApp } from "./app.js";
 import {
   assertUniqueFinalEventIsLast,
   assertTaskCreationAndWorkingStatus,
   createStreamMessageRequest,
   createMockConfig,
-} from '../utils/testing_utils.js';
-import { MockTool } from '@google/gemini-cli-core';
+} from "../utils/testing_utils.js";
+import { MockTool } from "@google/kaidex-cli-core";
 
 const mockToolConfirmationFn = async () =>
   ({}) as unknown as ToolCallConfirmationDetails;
@@ -43,12 +43,12 @@ const streamToSSEEvents = (
   stream: string,
 ): SendStreamingMessageSuccessResponse[] =>
   stream
-    .split('\n\n')
+    .split("\n\n")
     .filter(Boolean) // Remove empty strings from trailing newlines
     .map((chunk) => {
       const dataLine = chunk
-        .split('\n')
-        .find((line) => line.startsWith('data: '));
+        .split("\n")
+        .find((line) => line.startsWith("data: "));
       if (!dataLine) {
         throw new Error(`Invalid SSE chunk found: "${chunk}"`);
       }
@@ -57,23 +57,21 @@ const streamToSSEEvents = (
 
 // Mock the logger to avoid polluting test output
 // Comment out to debug tests
-vi.mock('../utils/logger.js', () => ({
+vi.mock("../utils/logger.js", () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
 let config: Config;
 const getToolRegistrySpy = vi.fn().mockReturnValue(ApprovalMode.DEFAULT);
 const getApprovalModeSpy = vi.fn();
-const getShellExecutionConfigSpy = vi.fn();
-vi.mock('../config/config.js', async () => {
-  const actual = await vi.importActual('../config/config.js');
+vi.mock("../config/config.js", async () => {
+  const actual = await vi.importActual("../config/config.js");
   return {
     ...actual,
     loadConfig: vi.fn().mockImplementation(async () => {
       const mockConfig = createMockConfig({
         getToolRegistry: getToolRegistrySpy,
         getApprovalMode: getApprovalModeSpy,
-        getShellExecutionConfig: getShellExecutionConfigSpy,
       });
       config = mockConfig as Config;
       return config;
@@ -81,21 +79,21 @@ vi.mock('../config/config.js', async () => {
   };
 });
 
-// Mock the GeminiClient to avoid actual API calls
+// Mock the KaiDexClient to avoid actual API calls
 const sendMessageStreamSpy = vi.fn();
-vi.mock('@google/gemini-cli-core', async () => {
-  const actual = await vi.importActual('@google/gemini-cli-core');
+vi.mock("@google/kaidex-cli-core", async () => {
+  const actual = await vi.importActual("@google/kaidex-cli-core");
   return {
     ...actual,
-    GeminiClient: vi.fn().mockImplementation(() => ({
+    KaiDexClient: vi.fn().mockImplementation(() => ({
       sendMessageStream: sendMessageStreamSpy,
-      getUserTier: vi.fn().mockReturnValue('free'),
+      getUserTier: vi.fn().mockReturnValue("free"),
       initialize: vi.fn(),
     })),
   };
 });
 
-describe('E2E Tests', () => {
+describe("E2E Tests", () => {
   let app: express.Express;
   let server: Server;
 
@@ -121,16 +119,16 @@ describe('E2E Tests', () => {
     vi.clearAllMocks();
   });
 
-  it('should create a new task and stream status updates (text-content) via POST /', async () => {
+  it("should create a new task and stream status updates (text-content) via POST /", async () => {
     sendMessageStreamSpy.mockImplementation(async function* () {
-      yield* [{ type: 'content', value: 'Hello how are you?' }];
+      yield* [{ type: "content", value: "Hello how are you?" }];
     });
 
     const agent = request.agent(app);
     const res = await agent
-      .post('/')
-      .send(createStreamMessageRequest('hello', 'a2a-test-message'))
-      .set('Content-Type', 'application/json')
+      .post("/")
+      .send(createStreamMessageRequest("hello", "a2a-test-message"))
+      .set("Content-Type", "application/json")
       .expect(200);
 
     const events = streamToSSEEvents(res.text);
@@ -139,34 +137,34 @@ describe('E2E Tests', () => {
 
     // Status update: text-content
     const textContentEvent = events[2].result as TaskStatusUpdateEvent;
-    expect(textContentEvent.kind).toBe('status-update');
-    expect(textContentEvent.status.state).toBe('working');
-    expect(textContentEvent.metadata?.['coderAgent']).toMatchObject({
-      kind: 'text-content',
+    expect(textContentEvent.kind).toBe("status-update");
+    expect(textContentEvent.status.state).toBe("working");
+    expect(textContentEvent.metadata?.["coderAgent"]).toMatchObject({
+      kind: "text-content",
     });
     expect(textContentEvent.status.message?.parts).toMatchObject([
-      { kind: 'text', text: 'Hello how are you?' },
+      { kind: "text", text: "Hello how are you?" },
     ]);
 
     // Status update: input-required (final)
     const finalEvent = events[3].result as TaskStatusUpdateEvent;
-    expect(finalEvent.kind).toBe('status-update');
-    expect(finalEvent.status?.state).toBe('input-required');
+    expect(finalEvent.kind).toBe("status-update");
+    expect(finalEvent.status?.state).toBe("input-required");
     expect(finalEvent.final).toBe(true);
 
     assertUniqueFinalEventIsLast(events);
     expect(events.length).toBe(4);
   });
 
-  it('should create a new task, schedule a tool call, and wait for approval', async () => {
+  it("should create a new task, schedule a tool call, and wait for approval", async () => {
     // First call yields the tool request
     sendMessageStreamSpy.mockImplementationOnce(async function* () {
       yield* [
         {
-          type: GeminiEventType.ToolCallRequest,
+          type: KaiDexEventType.ToolCallRequest,
           value: {
-            callId: 'test-call-id',
-            name: 'test-tool',
+            callId: "test-call-id",
+            name: "test-tool",
             args: {},
           },
         },
@@ -178,7 +176,7 @@ describe('E2E Tests', () => {
     });
 
     const mockTool = new MockTool({
-      name: 'test-tool',
+      name: "test-tool",
       shouldConfirmExecute: vi.fn(mockToolConfirmationFn),
     });
 
@@ -190,9 +188,9 @@ describe('E2E Tests', () => {
 
     const agent = request.agent(app);
     const res = await agent
-      .post('/')
-      .send(createStreamMessageRequest('run a tool', 'a2a-tool-test-message'))
-      .set('Content-Type', 'application/json')
+      .post("/")
+      .send(createStreamMessageRequest("run a tool", "a2a-tool-test-message"))
+      .set("Content-Type", "application/json")
       .expect(200);
 
     const events = streamToSSEEvents(res.text);
@@ -200,65 +198,65 @@ describe('E2E Tests', () => {
 
     // Status update: working
     const workingEvent2 = events[2].result as TaskStatusUpdateEvent;
-    expect(workingEvent2.kind).toBe('status-update');
-    expect(workingEvent2.status.state).toBe('working');
-    expect(workingEvent2.metadata?.['coderAgent']).toMatchObject({
-      kind: 'state-change',
+    expect(workingEvent2.kind).toBe("status-update");
+    expect(workingEvent2.status.state).toBe("working");
+    expect(workingEvent2.metadata?.["coderAgent"]).toMatchObject({
+      kind: "state-change",
     });
 
     // Status update: tool-call-update
     const toolCallUpdateEvent = events[3].result as TaskStatusUpdateEvent;
-    expect(toolCallUpdateEvent.kind).toBe('status-update');
-    expect(toolCallUpdateEvent.status.state).toBe('working');
-    expect(toolCallUpdateEvent.metadata?.['coderAgent']).toMatchObject({
-      kind: 'tool-call-update',
+    expect(toolCallUpdateEvent.kind).toBe("status-update");
+    expect(toolCallUpdateEvent.status.state).toBe("working");
+    expect(toolCallUpdateEvent.metadata?.["coderAgent"]).toMatchObject({
+      kind: "tool-call-update",
     });
     expect(toolCallUpdateEvent.status.message?.parts).toMatchObject([
       {
         data: {
-          status: 'validating',
-          request: { callId: 'test-call-id' },
+          status: "validating",
+          request: { callId: "test-call-id" },
         },
       },
     ]);
 
     // State update: awaiting_approval update
     const toolCallConfirmationEvent = events[4].result as TaskStatusUpdateEvent;
-    expect(toolCallConfirmationEvent.kind).toBe('status-update');
-    expect(toolCallConfirmationEvent.metadata?.['coderAgent']).toMatchObject({
-      kind: 'tool-call-confirmation',
+    expect(toolCallConfirmationEvent.kind).toBe("status-update");
+    expect(toolCallConfirmationEvent.metadata?.["coderAgent"]).toMatchObject({
+      kind: "tool-call-confirmation",
     });
     expect(toolCallConfirmationEvent.status.message?.parts).toMatchObject([
       {
         data: {
-          status: 'awaiting_approval',
-          request: { callId: 'test-call-id' },
+          status: "awaiting_approval",
+          request: { callId: "test-call-id" },
         },
       },
     ]);
-    expect(toolCallConfirmationEvent.status?.state).toBe('working');
+    expect(toolCallConfirmationEvent.status?.state).toBe("working");
 
     assertUniqueFinalEventIsLast(events);
     expect(events.length).toBe(6);
   });
 
-  it('should handle multiple tool calls in a single turn', async () => {
+  it("should handle multiple tool calls in a single turn", async () => {
     // First call yields the tool request
     sendMessageStreamSpy.mockImplementationOnce(async function* () {
       yield* [
         {
-          type: GeminiEventType.ToolCallRequest,
+          type: KaiDexEventType.ToolCallRequest,
           value: {
-            callId: 'test-call-id-1',
-            name: 'test-tool-1',
+            callId: "test-call-id-1",
+            name: "test-tool-1",
             args: {},
           },
         },
         {
-          type: GeminiEventType.ToolCallRequest,
+          type: KaiDexEventType.ToolCallRequest,
           value: {
-            callId: 'test-call-id-2',
-            name: 'test-tool-2',
+            callId: "test-call-id-2",
+            name: "test-tool-2",
             args: {},
           },
         },
@@ -270,13 +268,13 @@ describe('E2E Tests', () => {
     });
 
     const mockTool1 = new MockTool({
-      name: 'test-tool-1',
-      displayName: 'Test Tool 1',
+      name: "test-tool-1",
+      displayName: "Test Tool 1",
       shouldConfirmExecute: vi.fn(mockToolConfirmationFn),
     });
     const mockTool2 = new MockTool({
-      name: 'test-tool-2',
-      displayName: 'Test Tool 2',
+      name: "test-tool-2",
+      displayName: "Test Tool 2",
       shouldConfirmExecute: vi.fn(mockToolConfirmationFn),
     });
 
@@ -284,22 +282,22 @@ describe('E2E Tests', () => {
       getAllTools: vi.fn().mockReturnValue([mockTool1, mockTool2]),
       getToolsByServer: vi.fn().mockReturnValue([]),
       getTool: vi.fn().mockImplementation((name: string) => {
-        if (name === 'test-tool-1') return mockTool1;
-        if (name === 'test-tool-2') return mockTool2;
+        if (name === "test-tool-1") return mockTool1;
+        if (name === "test-tool-2") return mockTool2;
         return undefined;
       }),
     });
 
     const agent = request.agent(app);
     const res = await agent
-      .post('/')
+      .post("/")
       .send(
         createStreamMessageRequest(
-          'run two tools',
-          'a2a-multi-tool-test-message',
+          "run two tools",
+          "a2a-multi-tool-test-message",
         ),
       )
-      .set('Content-Type', 'application/json')
+      .set("Content-Type", "application/json")
       .expect(200);
 
     const events = streamToSSEEvents(res.text);
@@ -307,57 +305,57 @@ describe('E2E Tests', () => {
 
     // Second working update
     const workingEvent = events[2].result as TaskStatusUpdateEvent;
-    expect(workingEvent.kind).toBe('status-update');
-    expect(workingEvent.status.state).toBe('working');
+    expect(workingEvent.kind).toBe("status-update");
+    expect(workingEvent.status.state).toBe("working");
 
     // State Update: Validate each tool call
     const toolCallValidateEvent1 = events[3].result as TaskStatusUpdateEvent;
-    expect(toolCallValidateEvent1.metadata?.['coderAgent']).toMatchObject({
-      kind: 'tool-call-update',
+    expect(toolCallValidateEvent1.metadata?.["coderAgent"]).toMatchObject({
+      kind: "tool-call-update",
     });
     expect(toolCallValidateEvent1.status.message?.parts).toMatchObject([
       {
         data: {
-          status: 'validating',
-          request: { callId: 'test-call-id-1' },
+          status: "validating",
+          request: { callId: "test-call-id-1" },
         },
       },
     ]);
     const toolCallValidateEvent2 = events[4].result as TaskStatusUpdateEvent;
-    expect(toolCallValidateEvent2.metadata?.['coderAgent']).toMatchObject({
-      kind: 'tool-call-update',
+    expect(toolCallValidateEvent2.metadata?.["coderAgent"]).toMatchObject({
+      kind: "tool-call-update",
     });
     expect(toolCallValidateEvent2.status.message?.parts).toMatchObject([
       {
         data: {
-          status: 'validating',
-          request: { callId: 'test-call-id-2' },
+          status: "validating",
+          request: { callId: "test-call-id-2" },
         },
       },
     ]);
 
     // State Update: Set each tool call to awaiting
     const toolCallAwaitEvent1 = events[5].result as TaskStatusUpdateEvent;
-    expect(toolCallAwaitEvent1.metadata?.['coderAgent']).toMatchObject({
-      kind: 'tool-call-confirmation',
+    expect(toolCallAwaitEvent1.metadata?.["coderAgent"]).toMatchObject({
+      kind: "tool-call-confirmation",
     });
     expect(toolCallAwaitEvent1.status.message?.parts).toMatchObject([
       {
         data: {
-          status: 'awaiting_approval',
-          request: { callId: 'test-call-id-1' },
+          status: "awaiting_approval",
+          request: { callId: "test-call-id-1" },
         },
       },
     ]);
     const toolCallAwaitEvent2 = events[6].result as TaskStatusUpdateEvent;
-    expect(toolCallAwaitEvent2.metadata?.['coderAgent']).toMatchObject({
-      kind: 'tool-call-confirmation',
+    expect(toolCallAwaitEvent2.metadata?.["coderAgent"]).toMatchObject({
+      kind: "tool-call-confirmation",
     });
     expect(toolCallAwaitEvent2.status.message?.parts).toMatchObject([
       {
         data: {
-          status: 'awaiting_approval',
-          request: { callId: 'test-call-id-2' },
+          status: "awaiting_approval",
+          request: { callId: "test-call-id-2" },
         },
       },
     ]);
@@ -366,15 +364,15 @@ describe('E2E Tests', () => {
     expect(events.length).toBe(8);
   });
 
-  it('should handle tool calls that do not require approval', async () => {
+  it("should handle tool calls that do not require approval", async () => {
     // First call yields the tool request
     sendMessageStreamSpy.mockImplementationOnce(async function* () {
       yield* [
         {
-          type: GeminiEventType.ToolCallRequest,
+          type: KaiDexEventType.ToolCallRequest,
           value: {
-            callId: 'test-call-id-no-approval',
-            name: 'test-tool-no-approval',
+            callId: "test-call-id-no-approval",
+            name: "test-tool-no-approval",
             args: {},
           },
         },
@@ -382,15 +380,15 @@ describe('E2E Tests', () => {
     });
     // Second call, after the tool runs, yields the final text
     sendMessageStreamSpy.mockImplementationOnce(async function* () {
-      yield* [{ type: 'content', value: 'Tool executed successfully.' }];
+      yield* [{ type: "content", value: "Tool executed successfully." }];
     });
 
     const mockTool = new MockTool({
-      name: 'test-tool-no-approval',
-      displayName: 'Test Tool No Approval',
+      name: "test-tool-no-approval",
+      displayName: "Test Tool No Approval",
       execute: vi.fn().mockResolvedValue({
-        llmContent: 'Tool executed successfully.',
-        returnDisplay: 'Tool executed successfully.',
+        llmContent: "Tool executed successfully.",
+        returnDisplay: "Tool executed successfully.",
       }),
     });
 
@@ -402,14 +400,14 @@ describe('E2E Tests', () => {
 
     const agent = request.agent(app);
     const res = await agent
-      .post('/')
+      .post("/")
       .send(
         createStreamMessageRequest(
-          'run a tool without approval',
-          'a2a-no-approval-test-message',
+          "run a tool without approval",
+          "a2a-no-approval-test-message",
         ),
       )
-      .set('Content-Type', 'application/json')
+      .set("Content-Type", "application/json")
       .expect(200);
 
     const events = streamToSSEEvents(res.text);
@@ -417,92 +415,92 @@ describe('E2E Tests', () => {
 
     // Status update: working
     const workingEvent2 = events[2].result as TaskStatusUpdateEvent;
-    expect(workingEvent2.kind).toBe('status-update');
-    expect(workingEvent2.status.state).toBe('working');
+    expect(workingEvent2.kind).toBe("status-update");
+    expect(workingEvent2.status.state).toBe("working");
 
     // Status update: tool-call-update (validating)
     const validatingEvent = events[3].result as TaskStatusUpdateEvent;
-    expect(validatingEvent.metadata?.['coderAgent']).toMatchObject({
-      kind: 'tool-call-update',
+    expect(validatingEvent.metadata?.["coderAgent"]).toMatchObject({
+      kind: "tool-call-update",
     });
     expect(validatingEvent.status.message?.parts).toMatchObject([
       {
         data: {
-          status: 'validating',
-          request: { callId: 'test-call-id-no-approval' },
+          status: "validating",
+          request: { callId: "test-call-id-no-approval" },
         },
       },
     ]);
 
     // Status update: tool-call-update (scheduled)
     const scheduledEvent = events[4].result as TaskStatusUpdateEvent;
-    expect(scheduledEvent.metadata?.['coderAgent']).toMatchObject({
-      kind: 'tool-call-update',
+    expect(scheduledEvent.metadata?.["coderAgent"]).toMatchObject({
+      kind: "tool-call-update",
     });
     expect(scheduledEvent.status.message?.parts).toMatchObject([
       {
         data: {
-          status: 'scheduled',
-          request: { callId: 'test-call-id-no-approval' },
+          status: "scheduled",
+          request: { callId: "test-call-id-no-approval" },
         },
       },
     ]);
 
     // Status update: tool-call-update (executing)
     const executingEvent = events[5].result as TaskStatusUpdateEvent;
-    expect(executingEvent.metadata?.['coderAgent']).toMatchObject({
-      kind: 'tool-call-update',
+    expect(executingEvent.metadata?.["coderAgent"]).toMatchObject({
+      kind: "tool-call-update",
     });
     expect(executingEvent.status.message?.parts).toMatchObject([
       {
         data: {
-          status: 'executing',
-          request: { callId: 'test-call-id-no-approval' },
+          status: "executing",
+          request: { callId: "test-call-id-no-approval" },
         },
       },
     ]);
 
     // Status update: tool-call-update (success)
     const successEvent = events[6].result as TaskStatusUpdateEvent;
-    expect(successEvent.metadata?.['coderAgent']).toMatchObject({
-      kind: 'tool-call-update',
+    expect(successEvent.metadata?.["coderAgent"]).toMatchObject({
+      kind: "tool-call-update",
     });
     expect(successEvent.status.message?.parts).toMatchObject([
       {
         data: {
-          status: 'success',
-          request: { callId: 'test-call-id-no-approval' },
+          status: "success",
+          request: { callId: "test-call-id-no-approval" },
         },
       },
     ]);
 
     // Status update: working (before sending tool result to LLM)
     const workingEvent3 = events[7].result as TaskStatusUpdateEvent;
-    expect(workingEvent3.kind).toBe('status-update');
-    expect(workingEvent3.status.state).toBe('working');
+    expect(workingEvent3.kind).toBe("status-update");
+    expect(workingEvent3.status.state).toBe("working");
 
     // Status update: text-content (final LLM response)
     const textContentEvent = events[8].result as TaskStatusUpdateEvent;
-    expect(textContentEvent.metadata?.['coderAgent']).toMatchObject({
-      kind: 'text-content',
+    expect(textContentEvent.metadata?.["coderAgent"]).toMatchObject({
+      kind: "text-content",
     });
     expect(textContentEvent.status.message?.parts).toMatchObject([
-      { text: 'Tool executed successfully.' },
+      { text: "Tool executed successfully." },
     ]);
 
     assertUniqueFinalEventIsLast(events);
     expect(events.length).toBe(10);
   });
 
-  it('should bypass tool approval in YOLO mode', async () => {
+  it("should bypass tool approval in YOLO mode", async () => {
     // First call yields the tool request
     sendMessageStreamSpy.mockImplementationOnce(async function* () {
       yield* [
         {
-          type: GeminiEventType.ToolCallRequest,
+          type: KaiDexEventType.ToolCallRequest,
           value: {
-            callId: 'test-call-id-yolo',
-            name: 'test-tool-yolo',
+            callId: "test-call-id-yolo",
+            name: "test-tool-yolo",
             args: {},
           },
         },
@@ -510,18 +508,18 @@ describe('E2E Tests', () => {
     });
     // Second call, after the tool runs, yields the final text
     sendMessageStreamSpy.mockImplementationOnce(async function* () {
-      yield* [{ type: 'content', value: 'Tool executed successfully.' }];
+      yield* [{ type: "content", value: "Tool executed successfully." }];
     });
 
     // Set approval mode to yolo
     getApprovalModeSpy.mockReturnValue(ApprovalMode.YOLO);
 
     const mockTool = new MockTool({
-      name: 'test-tool-yolo',
-      displayName: 'Test Tool YOLO',
+      name: "test-tool-yolo",
+      displayName: "Test Tool YOLO",
       execute: vi.fn().mockResolvedValue({
-        llmContent: 'Tool executed successfully.',
-        returnDisplay: 'Tool executed successfully.',
+        llmContent: "Tool executed successfully.",
+        returnDisplay: "Tool executed successfully.",
       }),
     });
 
@@ -533,14 +531,14 @@ describe('E2E Tests', () => {
 
     const agent = request.agent(app);
     const res = await agent
-      .post('/')
+      .post("/")
       .send(
         createStreamMessageRequest(
-          'run a tool in yolo mode',
-          'a2a-yolo-mode-test-message',
+          "run a tool in yolo mode",
+          "a2a-yolo-mode-test-message",
         ),
       )
-      .set('Content-Type', 'application/json')
+      .set("Content-Type", "application/json")
       .expect(200);
 
     const events = streamToSSEEvents(res.text);
@@ -548,77 +546,77 @@ describe('E2E Tests', () => {
 
     // Status update: working
     const workingEvent2 = events[2].result as TaskStatusUpdateEvent;
-    expect(workingEvent2.kind).toBe('status-update');
-    expect(workingEvent2.status.state).toBe('working');
+    expect(workingEvent2.kind).toBe("status-update");
+    expect(workingEvent2.status.state).toBe("working");
 
     // Status update: tool-call-update (validating)
     const validatingEvent = events[3].result as TaskStatusUpdateEvent;
-    expect(validatingEvent.metadata?.['coderAgent']).toMatchObject({
-      kind: 'tool-call-update',
+    expect(validatingEvent.metadata?.["coderAgent"]).toMatchObject({
+      kind: "tool-call-update",
     });
     expect(validatingEvent.status.message?.parts).toMatchObject([
       {
         data: {
-          status: 'validating',
-          request: { callId: 'test-call-id-yolo' },
+          status: "validating",
+          request: { callId: "test-call-id-yolo" },
         },
       },
     ]);
 
     // Status update: tool-call-update (scheduled)
     const awaitingEvent = events[4].result as TaskStatusUpdateEvent;
-    expect(awaitingEvent.metadata?.['coderAgent']).toMatchObject({
-      kind: 'tool-call-update',
+    expect(awaitingEvent.metadata?.["coderAgent"]).toMatchObject({
+      kind: "tool-call-update",
     });
     expect(awaitingEvent.status.message?.parts).toMatchObject([
       {
         data: {
-          status: 'scheduled',
-          request: { callId: 'test-call-id-yolo' },
+          status: "scheduled",
+          request: { callId: "test-call-id-yolo" },
         },
       },
     ]);
 
     // Status update: tool-call-update (executing)
     const executingEvent = events[5].result as TaskStatusUpdateEvent;
-    expect(executingEvent.metadata?.['coderAgent']).toMatchObject({
-      kind: 'tool-call-update',
+    expect(executingEvent.metadata?.["coderAgent"]).toMatchObject({
+      kind: "tool-call-update",
     });
     expect(executingEvent.status.message?.parts).toMatchObject([
       {
         data: {
-          status: 'executing',
-          request: { callId: 'test-call-id-yolo' },
+          status: "executing",
+          request: { callId: "test-call-id-yolo" },
         },
       },
     ]);
 
     // Status update: tool-call-update (success)
     const successEvent = events[6].result as TaskStatusUpdateEvent;
-    expect(successEvent.metadata?.['coderAgent']).toMatchObject({
-      kind: 'tool-call-update',
+    expect(successEvent.metadata?.["coderAgent"]).toMatchObject({
+      kind: "tool-call-update",
     });
     expect(successEvent.status.message?.parts).toMatchObject([
       {
         data: {
-          status: 'success',
-          request: { callId: 'test-call-id-yolo' },
+          status: "success",
+          request: { callId: "test-call-id-yolo" },
         },
       },
     ]);
 
     // Status update: working (before sending tool result to LLM)
     const workingEvent3 = events[7].result as TaskStatusUpdateEvent;
-    expect(workingEvent3.kind).toBe('status-update');
-    expect(workingEvent3.status.state).toBe('working');
+    expect(workingEvent3.kind).toBe("status-update");
+    expect(workingEvent3.status.state).toBe("working");
 
     // Status update: text-content (final LLM response)
     const textContentEvent = events[8].result as TaskStatusUpdateEvent;
-    expect(textContentEvent.metadata?.['coderAgent']).toMatchObject({
-      kind: 'text-content',
+    expect(textContentEvent.metadata?.["coderAgent"]).toMatchObject({
+      kind: "text-content",
     });
     expect(textContentEvent.status.message?.parts).toMatchObject([
-      { text: 'Tool executed successfully.' },
+      { text: "Tool executed successfully." },
     ]);
 
     assertUniqueFinalEventIsLast(events);

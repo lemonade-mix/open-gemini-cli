@@ -4,23 +4,22 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type React from 'react';
-import { useEffect, useState } from 'react';
-import { Box, Text } from 'ink';
-import { DiffRenderer } from './DiffRenderer.js';
-import { RenderInline } from '../../utils/InlineMarkdownRenderer.js';
+import type React from "react";
+import { Box, Text } from "ink";
+import { DiffRenderer } from "./DiffRenderer.js";
+import { Colors } from "../../colors.js";
+import { RenderInline } from "../../utils/InlineMarkdownRenderer.js";
 import type {
   ToolCallConfirmationDetails,
   ToolExecuteConfirmationDetails,
   ToolMcpConfirmationDetails,
   Config,
-} from '@google/gemini-cli-core';
-import { IdeClient, ToolConfirmationOutcome } from '@google/gemini-cli-core';
-import type { RadioSelectItem } from '../shared/RadioButtonSelect.js';
-import { RadioButtonSelect } from '../shared/RadioButtonSelect.js';
-import { MaxSizedBox } from '../shared/MaxSizedBox.js';
-import { useKeypress } from '../../hooks/useKeypress.js';
-import { theme } from '../../semantic-colors.js';
+} from "@google/kaidex-cli-core";
+import { IdeClient, ToolConfirmationOutcome } from "@google/kaidex-cli-core";
+import type { RadioSelectItem } from "../shared/RadioButtonSelect.js";
+import { RadioButtonSelect } from "../shared/RadioButtonSelect.js";
+import { MaxSizedBox } from "../shared/MaxSizedBox.js";
+import { useKeypress } from "../../hooks/useKeypress.js";
 
 export interface ToolConfirmationMessageProps {
   confirmationDetails: ToolCallConfirmationDetails;
@@ -42,31 +41,12 @@ export const ToolConfirmationMessage: React.FC<
   const { onConfirm } = confirmationDetails;
   const childWidth = terminalWidth - 2; // 2 for padding
 
-  const [ideClient, setIdeClient] = useState<IdeClient | null>(null);
-  const [isDiffingEnabled, setIsDiffingEnabled] = useState(false);
-
-  useEffect(() => {
-    let isMounted = true;
-    if (config.getIdeMode()) {
-      const getIdeClient = async () => {
-        const client = await IdeClient.getInstance();
-        if (isMounted) {
-          setIdeClient(client);
-          setIsDiffingEnabled(client?.isDiffingEnabled() ?? false);
-        }
-      };
-      getIdeClient();
-    }
-    return () => {
-      isMounted = false;
-    };
-  }, [config]);
-
   const handleConfirm = async (outcome: ToolConfirmationOutcome) => {
-    if (confirmationDetails.type === 'edit') {
-      if (config.getIdeMode() && isDiffingEnabled) {
+    if (confirmationDetails.type === "edit") {
+      if (config.getIdeMode()) {
         const cliOutcome =
-          outcome === ToolConfirmationOutcome.Cancel ? 'rejected' : 'accepted';
+          outcome === ToolConfirmationOutcome.Cancel ? "rejected" : "accepted";
+        const ideClient = await IdeClient.getInstance();
         await ideClient?.resolveDiffFromCli(
           confirmationDetails.filePath,
           cliOutcome,
@@ -81,7 +61,7 @@ export const ToolConfirmationMessage: React.FC<
   useKeypress(
     (key) => {
       if (!isFocused) return;
-      if (key.name === 'escape' || (key.ctrl && key.name === 'c')) {
+      if (key.name === "escape" || (key.ctrl && key.name === "c")) {
         handleConfirm(ToolConfirmationOutcome.Cancel);
       }
     },
@@ -103,7 +83,7 @@ export const ToolConfirmationMessage: React.FC<
   function availableBodyContentHeight() {
     if (options.length === 0) {
       // This should not happen in practice as options are always added before this is called.
-      throw new Error('Options not provided for confirmation message');
+      throw new Error("Options not provided for confirmation message");
     }
 
     if (availableTerminalHeight === undefined) {
@@ -127,19 +107,19 @@ export const ToolConfirmationMessage: React.FC<
     return Math.max(availableTerminalHeight - surroundingElementsHeight, 1);
   }
 
-  if (confirmationDetails.type === 'edit') {
+  if (confirmationDetails.type === "edit") {
     if (confirmationDetails.isModifying) {
       return (
         <Box
-          width={terminalWidth}
+          minWidth="90%"
           borderStyle="round"
-          borderColor={theme.border.default}
+          borderColor={Colors.Gray}
           justifyContent="space-around"
           padding={1}
           overflow="hidden"
         >
-          <Text color={theme.text.primary}>Modify in progress: </Text>
-          <Text color={theme.status.success}>
+          <Text>Modify in progress: </Text>
+          <Text color={Colors.AccentGreen}>
             Save and close external editor to continue
           </Text>
         </Box>
@@ -148,30 +128,30 @@ export const ToolConfirmationMessage: React.FC<
 
     question = `Apply this change?`;
     options.push({
-      label: 'Yes, allow once',
+      label: "Yes, allow once",
       value: ToolConfirmationOutcome.ProceedOnce,
-      key: 'Yes, allow once',
     });
     if (isTrustedFolder) {
       options.push({
-        label: 'Yes, allow always',
+        label: "Yes, allow always",
         value: ToolConfirmationOutcome.ProceedAlways,
-        key: 'Yes, allow always',
       });
     }
-    if (!config.getIdeMode() || !isDiffingEnabled) {
+    if (config.getIdeMode()) {
       options.push({
-        label: 'Modify with external editor',
+        label: "No (esc)",
+        value: ToolConfirmationOutcome.Cancel,
+      });
+    } else {
+      options.push({
+        label: "Modify with external editor",
         value: ToolConfirmationOutcome.ModifyWithEditor,
-        key: 'Modify with external editor',
+      });
+      options.push({
+        label: "No, suggest changes (esc)",
+        value: ToolConfirmationOutcome.Cancel,
       });
     }
-
-    options.push({
-      label: 'No, suggest changes (esc)',
-      value: ToolConfirmationOutcome.Cancel,
-      key: 'No, suggest changes (esc)',
-    });
 
     bodyContent = (
       <DiffRenderer
@@ -181,27 +161,24 @@ export const ToolConfirmationMessage: React.FC<
         terminalWidth={childWidth}
       />
     );
-  } else if (confirmationDetails.type === 'exec') {
+  } else if (confirmationDetails.type === "exec") {
     const executionProps =
       confirmationDetails as ToolExecuteConfirmationDetails;
 
     question = `Allow execution of: '${executionProps.rootCommand}'?`;
     options.push({
-      label: 'Yes, allow once',
+      label: "Yes, allow once",
       value: ToolConfirmationOutcome.ProceedOnce,
-      key: 'Yes, allow once',
     });
     if (isTrustedFolder) {
       options.push({
         label: `Yes, allow always ...`,
         value: ToolConfirmationOutcome.ProceedAlways,
-        key: `Yes, allow always ...`,
       });
     }
     options.push({
-      label: 'No, suggest changes (esc)',
+      label: "No, suggest changes (esc)",
       value: ToolConfirmationOutcome.Cancel,
-      key: 'No, suggest changes (esc)',
     });
 
     let bodyContentHeight = availableBodyContentHeight();
@@ -216,13 +193,13 @@ export const ToolConfirmationMessage: React.FC<
             maxWidth={Math.max(childWidth - 4, 1)}
           >
             <Box>
-              <Text color={theme.text.link}>{executionProps.command}</Text>
+              <Text color={Colors.AccentCyan}>{executionProps.command}</Text>
             </Box>
           </MaxSizedBox>
         </Box>
       </Box>
     );
-  } else if (confirmationDetails.type === 'info') {
+  } else if (confirmationDetails.type === "info") {
     const infoProps = confirmationDetails;
     const displayUrls =
       infoProps.urls &&
@@ -230,34 +207,31 @@ export const ToolConfirmationMessage: React.FC<
 
     question = `Do you want to proceed?`;
     options.push({
-      label: 'Yes, allow once',
+      label: "Yes, allow once",
       value: ToolConfirmationOutcome.ProceedOnce,
-      key: 'Yes, allow once',
     });
     if (isTrustedFolder) {
       options.push({
-        label: 'Yes, allow always',
+        label: "Yes, allow always",
         value: ToolConfirmationOutcome.ProceedAlways,
-        key: 'Yes, allow always',
       });
     }
     options.push({
-      label: 'No, suggest changes (esc)',
+      label: "No, suggest changes (esc)",
       value: ToolConfirmationOutcome.Cancel,
-      key: 'No, suggest changes (esc)',
     });
 
     bodyContent = (
       <Box flexDirection="column" paddingX={1} marginLeft={1}>
-        <Text color={theme.text.link}>
+        <Text color={Colors.AccentCyan}>
           <RenderInline text={infoProps.prompt} />
         </Text>
         {displayUrls && infoProps.urls && infoProps.urls.length > 0 && (
           <Box flexDirection="column" marginTop={1}>
-            <Text color={theme.text.primary}>URLs to fetch:</Text>
+            <Text>URLs to fetch:</Text>
             {infoProps.urls.map((url) => (
               <Text key={url}>
-                {' '}
+                {" "}
                 - <RenderInline text={url} />
               </Text>
             ))}
@@ -271,33 +245,29 @@ export const ToolConfirmationMessage: React.FC<
 
     bodyContent = (
       <Box flexDirection="column" paddingX={1} marginLeft={1}>
-        <Text color={theme.text.link}>MCP Server: {mcpProps.serverName}</Text>
-        <Text color={theme.text.link}>Tool: {mcpProps.toolName}</Text>
+        <Text color={Colors.AccentCyan}>MCP Server: {mcpProps.serverName}</Text>
+        <Text color={Colors.AccentCyan}>Tool: {mcpProps.toolName}</Text>
       </Box>
     );
 
     question = `Allow execution of MCP tool "${mcpProps.toolName}" from server "${mcpProps.serverName}"?`;
     options.push({
-      label: 'Yes, allow once',
+      label: "Yes, allow once",
       value: ToolConfirmationOutcome.ProceedOnce,
-      key: 'Yes, allow once',
     });
     if (isTrustedFolder) {
       options.push({
         label: `Yes, always allow tool "${mcpProps.toolName}" from server "${mcpProps.serverName}"`,
         value: ToolConfirmationOutcome.ProceedAlwaysTool, // Cast until types are updated
-        key: `Yes, always allow tool "${mcpProps.toolName}" from server "${mcpProps.serverName}"`,
       });
       options.push({
         label: `Yes, always allow all tools from server "${mcpProps.serverName}"`,
         value: ToolConfirmationOutcome.ProceedAlwaysServer,
-        key: `Yes, always allow all tools from server "${mcpProps.serverName}"`,
       });
     }
     options.push({
-      label: 'No, suggest changes (esc)',
+      label: "No, suggest changes (esc)",
       value: ToolConfirmationOutcome.Cancel,
-      key: 'No, suggest changes (esc)',
     });
   }
 
@@ -311,9 +281,7 @@ export const ToolConfirmationMessage: React.FC<
 
       {/* Confirmation Question */}
       <Box marginBottom={1} flexShrink={0}>
-        <Text color={theme.text.primary} wrap="truncate">
-          {question}
-        </Text>
+        <Text wrap="truncate">{question}</Text>
       </Box>
 
       {/* Select Input for Options */}

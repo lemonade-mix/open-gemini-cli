@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { OAuth2Client } from 'google-auth-library';
+import type { OAuth2Client } from "google-auth-library";
 import type {
   CodeAssistGlobalUserSettingResponse,
   GoogleRpcResponse,
@@ -13,7 +13,7 @@ import type {
   LongRunningOperationResponse,
   OnboardUserRequest,
   SetCodeAssistGlobalUserSettingRequest,
-} from './types.js';
+} from "./types.js";
 import type {
   CountTokensParameters,
   CountTokensResponse,
@@ -21,20 +21,22 @@ import type {
   EmbedContentResponse,
   GenerateContentParameters,
   GenerateContentResponse,
-} from '@google/genai';
-import * as readline from 'node:readline';
-import type { ContentGenerator } from '../core/contentGenerator.js';
-import { UserTierId } from './types.js';
+  ChatCompletionRequest,
+  ChatCompletionResponse,
+} from "../core/contentGenerator.js";
+import * as readline from "node:readline";
+import type { ContentGenerator } from "../core/contentGenerator.js";
+import { UserTierId } from "./types.js";
 import type {
   CaCountTokenResponse,
   CaGenerateContentResponse,
-} from './converter.js';
+} from "./converter.js";
 import {
   fromCountTokenResponse,
   fromGenerateContentResponse,
   toCountTokenRequest,
   toGenerateContentRequest,
-} from './converter.js';
+} from "./converter.js";
 
 /** HTTP options to be used in each of the requests. */
 export interface HttpOptions {
@@ -42,8 +44,8 @@ export interface HttpOptions {
   headers?: Record<string, string>;
 }
 
-export const CODE_ASSIST_ENDPOINT = 'https://cloudcode-pa.googleapis.com';
-export const CODE_ASSIST_API_VERSION = 'v1internal';
+export const CODE_ASSIST_ENDPOINT = "https://cloudcode-pa.googleapis.com";
+export const CODE_ASSIST_API_VERSION = "v1internal";
 
 export class CodeAssistServer implements ContentGenerator {
   constructor(
@@ -54,25 +56,83 @@ export class CodeAssistServer implements ContentGenerator {
     readonly userTier?: UserTierId,
   ) {}
 
-  async generateContentStream(
+  // OpenAI-compatible methods (stub implementations for CodeAssist)
+  async chatCompletion(
+    request: ChatCompletionRequest,
+    userPromptId: string,
+  ): Promise<ChatCompletionResponse> {
+    // Convert to Gemini format and use generateContent
+    const geminiRequest = {
+      contents: request.messages.map((msg: any) => ({
+        role: msg.role === "assistant" ? "model" : msg.role,
+        parts: [{ text: msg.content }],
+      })),
+    };
+    const result = await this.generateContent(geminiRequest, userPromptId);
+
+    // Convert back to OpenAI format
+    return {
+      choices: [
+        {
+          index: 0,
+          message: {
+            role: "assistant",
+            content:
+              result.response.candidates[0]?.content.parts[0]?.text || "",
+          },
+          finish_reason: "stop",
+        },
+      ],
+    };
+  }
+
+  async *chatCompletionStream(
+    request: ChatCompletionRequest,
+    userPromptId: string,
+  ): AsyncGenerator<ChatCompletionResponse> {
+    // Convert to Gemini format and use generateContentStream
+    const geminiRequest = {
+      contents: request.messages.map((msg: any) => ({
+        role: msg.role === "assistant" ? "model" : msg.role,
+        parts: [{ text: msg.content }],
+      })),
+    };
+
+    for await (const chunk of this.generateContentStream(
+      geminiRequest,
+      userPromptId,
+    )) {
+      yield {
+        choices: [
+          {
+            index: 0,
+            delta: {
+              content:
+                chunk.response.candidates[0]?.content.parts[0]?.text || "",
+            },
+          },
+        ],
+      };
+    }
+  }
+
+  async *generateContentStream(
     req: GenerateContentParameters,
     userPromptId: string,
-  ): Promise<AsyncGenerator<GenerateContentResponse>> {
+  ): AsyncGenerator<GenerateContentResponse> {
     const resps = await this.requestStreamingPost<CaGenerateContentResponse>(
-      'streamGenerateContent',
+      "streamGenerateContent",
       toGenerateContentRequest(
-        req,
+        req as any,
         userPromptId,
         this.projectId,
         this.sessionId,
       ),
-      req.config?.abortSignal,
+      (req as any).config?.abortSignal,
     );
-    return (async function* (): AsyncGenerator<GenerateContentResponse> {
-      for await (const resp of resps) {
-        yield fromGenerateContentResponse(resp);
-      }
-    })();
+    for await (const resp of resps) {
+      yield fromGenerateContentResponse(resp) as any;
+    }
   }
 
   async generateContent(
@@ -80,23 +140,23 @@ export class CodeAssistServer implements ContentGenerator {
     userPromptId: string,
   ): Promise<GenerateContentResponse> {
     const resp = await this.requestPost<CaGenerateContentResponse>(
-      'generateContent',
+      "generateContent",
       toGenerateContentRequest(
-        req,
+        req as any,
         userPromptId,
         this.projectId,
         this.sessionId,
       ),
-      req.config?.abortSignal,
+      (req as any).config?.abortSignal,
     );
-    return fromGenerateContentResponse(resp);
+    return fromGenerateContentResponse(resp) as any;
   }
 
   async onboardUser(
     req: OnboardUserRequest,
   ): Promise<LongRunningOperationResponse> {
     return await this.requestPost<LongRunningOperationResponse>(
-      'onboardUser',
+      "onboardUser",
       req,
     );
   }
@@ -106,7 +166,7 @@ export class CodeAssistServer implements ContentGenerator {
   ): Promise<LoadCodeAssistResponse> {
     try {
       return await this.requestPost<LoadCodeAssistResponse>(
-        'loadCodeAssist',
+        "loadCodeAssist",
         req,
       );
     } catch (e) {
@@ -122,7 +182,7 @@ export class CodeAssistServer implements ContentGenerator {
 
   async getCodeAssistGlobalUserSetting(): Promise<CodeAssistGlobalUserSettingResponse> {
     return await this.requestGet<CodeAssistGlobalUserSettingResponse>(
-      'getCodeAssistGlobalUserSetting',
+      "getCodeAssistGlobalUserSetting",
     );
   }
 
@@ -130,17 +190,17 @@ export class CodeAssistServer implements ContentGenerator {
     req: SetCodeAssistGlobalUserSettingRequest,
   ): Promise<CodeAssistGlobalUserSettingResponse> {
     return await this.requestPost<CodeAssistGlobalUserSettingResponse>(
-      'setCodeAssistGlobalUserSetting',
+      "setCodeAssistGlobalUserSetting",
       req,
     );
   }
 
   async countTokens(req: CountTokensParameters): Promise<CountTokensResponse> {
     const resp = await this.requestPost<CaCountTokenResponse>(
-      'countTokens',
-      toCountTokenRequest(req),
+      "countTokens",
+      toCountTokenRequest(req as any),
     );
-    return fromCountTokenResponse(resp);
+    return fromCountTokenResponse(resp) as any;
   }
 
   async embedContent(
@@ -156,12 +216,12 @@ export class CodeAssistServer implements ContentGenerator {
   ): Promise<T> {
     const res = await this.client.request({
       url: this.getMethodUrl(method),
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
         ...this.httpOptions.headers,
       },
-      responseType: 'json',
+      responseType: "json",
       body: JSON.stringify(req),
       signal,
     });
@@ -171,12 +231,12 @@ export class CodeAssistServer implements ContentGenerator {
   async requestGet<T>(method: string, signal?: AbortSignal): Promise<T> {
     const res = await this.client.request({
       url: this.getMethodUrl(method),
-      method: 'GET',
+      method: "GET",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
         ...this.httpOptions.headers,
       },
-      responseType: 'json',
+      responseType: "json",
       signal,
     });
     return res.data as T;
@@ -189,15 +249,15 @@ export class CodeAssistServer implements ContentGenerator {
   ): Promise<AsyncGenerator<T>> {
     const res = await this.client.request({
       url: this.getMethodUrl(method),
-      method: 'POST',
+      method: "POST",
       params: {
-        alt: 'sse',
+        alt: "sse",
       },
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
         ...this.httpOptions.headers,
       },
-      responseType: 'stream',
+      responseType: "stream",
       body: JSON.stringify(req),
       signal,
     });
@@ -211,13 +271,13 @@ export class CodeAssistServer implements ContentGenerator {
       let bufferedLines: string[] = [];
       for await (const line of rl) {
         // blank lines are used to separate JSON objects in the stream
-        if (line === '') {
+        if (line === "") {
           if (bufferedLines.length === 0) {
             continue; // no data to yield
           }
-          yield JSON.parse(bufferedLines.join('\n')) as T;
+          yield JSON.parse(bufferedLines.join("\n")) as T;
           bufferedLines = []; // Reset the buffer after yielding
-        } else if (line.startsWith('data: ')) {
+        } else if (line.startsWith("data: ")) {
           bufferedLines.push(line.slice(6).trim());
         } else {
           throw new Error(`Unexpected line format in response: ${line}`);
@@ -228,13 +288,13 @@ export class CodeAssistServer implements ContentGenerator {
 
   getMethodUrl(method: string): string {
     const endpoint =
-      process.env['CODE_ASSIST_ENDPOINT'] ?? CODE_ASSIST_ENDPOINT;
+      process.env["CODE_ASSIST_ENDPOINT"] ?? CODE_ASSIST_ENDPOINT;
     return `${endpoint}/${CODE_ASSIST_API_VERSION}:${method}`;
   }
 }
 
 function isVpcScAffectedUser(error: unknown): boolean {
-  if (error && typeof error === 'object' && 'response' in error) {
+  if (error && typeof error === "object" && "response" in error) {
     const gaxiosError = error as {
       response?: {
         data?: unknown;
@@ -245,7 +305,7 @@ function isVpcScAffectedUser(error: unknown): boolean {
       | undefined;
     if (Array.isArray(response?.error?.details)) {
       return response.error.details.some(
-        (detail) => detail.reason === 'SECURITY_POLICY_VIOLATED',
+        (detail) => detail.reason === "SECURITY_POLICY_VIOLATED",
       );
     }
   }

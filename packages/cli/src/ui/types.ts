@@ -6,51 +6,50 @@
 
 import type {
   CompressionStatus,
-  MCPServerConfig,
   ThoughtSummary,
   ToolCallConfirmationDetails,
   ToolConfirmationOutcome,
   ToolResultDisplay,
-} from '@google/gemini-cli-core';
-import type { PartListUnion } from '@google/genai';
-import { type ReactNode } from 'react';
+} from "@google/kaidex-cli-core";
+import type { PartListUnion } from "@google/genai";
+import { type ReactNode } from "react";
 
 export type { ThoughtSummary };
 
 export enum AuthState {
   // Attemtping to authenticate or re-authenticate
-  Unauthenticated = 'unauthenticated',
+  Unauthenticated = "unauthenticated",
   // Auth dialog is open for user to select auth method
-  Updating = 'updating',
+  Updating = "updating",
   // Successfully authenticated
-  Authenticated = 'authenticated',
+  Authenticated = "authenticated",
 }
 
 // Only defining the state enum needed by the UI
 export enum StreamingState {
-  Idle = 'idle',
-  Responding = 'responding',
-  WaitingForConfirmation = 'waiting_for_confirmation',
+  Idle = "idle",
+  Responding = "responding",
+  WaitingForConfirmation = "waiting_for_confirmation",
 }
 
 // Copied from server/src/core/turn.ts for CLI usage
-export enum GeminiEventType {
-  Content = 'content',
-  ToolCallRequest = 'tool_call_request',
+export enum KaiDexEventType {
+  Content = "content",
+  ToolCallRequest = "tool_call_request",
   // Add other event types if the UI hook needs to handle them
 }
 
 export enum ToolCallStatus {
-  Pending = 'Pending',
-  Canceled = 'Canceled',
-  Confirming = 'Confirming',
-  Executing = 'Executing',
-  Success = 'Success',
-  Error = 'Error',
+  Pending = "Pending",
+  Canceled = "Canceled",
+  Confirming = "Confirming",
+  Executing = "Executing",
+  Success = "Success",
+  Error = "Error",
 }
 
 export interface ToolCallEvent {
-  type: 'tool_call';
+  type: "tool_call";
   status: ToolCallStatus;
   callId: string;
   name: string;
@@ -67,7 +66,6 @@ export interface IndividualToolCallDisplay {
   status: ToolCallStatus;
   confirmationDetails: ToolCallConfirmationDetails | undefined;
   renderOutputAsMarkdown?: boolean;
-  ptyId?: number;
   outputFile?: string;
 }
 
@@ -83,37 +81,32 @@ export interface HistoryItemBase {
 }
 
 export type HistoryItemUser = HistoryItemBase & {
-  type: 'user';
+  type: "user";
   text: string;
 };
 
 export type HistoryItemGemini = HistoryItemBase & {
-  type: 'gemini';
+  type: "gemini";
   text: string;
 };
 
 export type HistoryItemGeminiContent = HistoryItemBase & {
-  type: 'gemini_content';
+  type: "gemini_content";
   text: string;
 };
 
 export type HistoryItemInfo = HistoryItemBase & {
-  type: 'info';
+  type: "info";
   text: string;
 };
 
 export type HistoryItemError = HistoryItemBase & {
-  type: 'error';
-  text: string;
-};
-
-export type HistoryItemWarning = HistoryItemBase & {
-  type: 'warning';
+  type: "error";
   text: string;
 };
 
 export type HistoryItemAbout = HistoryItemBase & {
-  type: 'about';
+  type: "about";
   cliVersion: string;
   osVersion: string;
   sandboxEnv: string;
@@ -124,102 +117,41 @@ export type HistoryItemAbout = HistoryItemBase & {
 };
 
 export type HistoryItemHelp = HistoryItemBase & {
-  type: 'help';
+  type: "help";
   timestamp: Date;
 };
 
 export type HistoryItemStats = HistoryItemBase & {
-  type: 'stats';
+  type: "stats";
   duration: string;
 };
 
 export type HistoryItemModelStats = HistoryItemBase & {
-  type: 'model_stats';
+  type: "model_stats";
 };
 
 export type HistoryItemToolStats = HistoryItemBase & {
-  type: 'tool_stats';
+  type: "tool_stats";
 };
 
 export type HistoryItemQuit = HistoryItemBase & {
-  type: 'quit';
+  type: "quit";
   duration: string;
 };
 
 export type HistoryItemToolGroup = HistoryItemBase & {
-  type: 'tool_group';
+  type: "tool_group";
   tools: IndividualToolCallDisplay[];
 };
 
 export type HistoryItemUserShell = HistoryItemBase & {
-  type: 'user_shell';
+  type: "user_shell";
   text: string;
 };
 
 export type HistoryItemCompression = HistoryItemBase & {
-  type: 'compression';
+  type: "compression";
   compression: CompressionProps;
-};
-
-export type HistoryItemExtensionsList = HistoryItemBase & {
-  type: 'extensions_list';
-};
-
-export interface ChatDetail {
-  name: string;
-  mtime: string;
-}
-
-export type HistoryItemChatList = HistoryItemBase & {
-  type: 'chat_list';
-  chats: ChatDetail[];
-};
-
-export interface ToolDefinition {
-  name: string;
-  displayName: string;
-  description?: string;
-}
-
-export type HistoryItemToolsList = HistoryItemBase & {
-  type: 'tools_list';
-  tools: ToolDefinition[];
-  showDescriptions: boolean;
-};
-
-// JSON-friendly types for using as a simple data model showing info about an
-// MCP Server.
-export interface JsonMcpTool {
-  serverName: string;
-  name: string;
-  description?: string;
-  schema?: {
-    parametersJsonSchema?: unknown;
-    parameters?: unknown;
-  };
-}
-
-export interface JsonMcpPrompt {
-  serverName: string;
-  name: string;
-  description?: string;
-}
-
-export type HistoryItemMcpStatus = HistoryItemBase & {
-  type: 'mcp_status';
-  servers: Record<string, MCPServerConfig>;
-  tools: JsonMcpTool[];
-  prompts: JsonMcpPrompt[];
-  authStatus: Record<
-    string,
-    'authenticated' | 'expired' | 'unauthenticated' | 'not-configured'
-  >;
-  blockedServers: Array<{ name: string; extensionName: string }>;
-  discoveryInProgress: boolean;
-  connectingServers: string[];
-  showDescriptions: boolean;
-  showSchema: boolean;
-  showTips: boolean;
 };
 
 // Using Omit<HistoryItem, 'id'> seems to have some issues with typescript's
@@ -233,7 +165,6 @@ export type HistoryItemWithoutId =
   | HistoryItemGeminiContent
   | HistoryItemInfo
   | HistoryItemError
-  | HistoryItemWarning
   | HistoryItemAbout
   | HistoryItemHelp
   | HistoryItemToolGroup
@@ -241,32 +172,23 @@ export type HistoryItemWithoutId =
   | HistoryItemModelStats
   | HistoryItemToolStats
   | HistoryItemQuit
-  | HistoryItemCompression
-  | HistoryItemExtensionsList
-  | HistoryItemToolsList
-  | HistoryItemMcpStatus
-  | HistoryItemChatList;
+  | HistoryItemCompression;
 
 export type HistoryItem = HistoryItemWithoutId & { id: number };
 
 // Message types used by internal command feedback (subset of HistoryItem types)
 export enum MessageType {
-  INFO = 'info',
-  ERROR = 'error',
-  WARNING = 'warning',
-  USER = 'user',
-  ABOUT = 'about',
-  HELP = 'help',
-  STATS = 'stats',
-  MODEL_STATS = 'model_stats',
-  TOOL_STATS = 'tool_stats',
-  QUIT = 'quit',
-  GEMINI = 'gemini',
-  COMPRESSION = 'compression',
-  EXTENSIONS_LIST = 'extensions_list',
-  TOOLS_LIST = 'tools_list',
-  MCP_STATUS = 'mcp_status',
-  CHAT_LIST = 'chat_list',
+  INFO = "info",
+  ERROR = "error",
+  USER = "user",
+  ABOUT = "about",
+  HELP = "help",
+  STATS = "stats",
+  MODEL_STATS = "model_stats",
+  TOOL_STATS = "tool_stats",
+  QUIT = "quit",
+  GEMINI = "gemini",
+  COMPRESSION = "compression",
 }
 
 // Simplified message structure for internal feedback
@@ -322,31 +244,31 @@ export type Message =
     };
 
 export interface ConsoleMessageItem {
-  type: 'log' | 'warn' | 'error' | 'debug' | 'info';
+  type: "log" | "warn" | "error" | "debug" | "info";
   content: string;
   count: number;
 }
 
 /**
  * Result type for a slash command that should immediately result in a prompt
- * being submitted to the Gemini model.
+ * being submitted to the KaiDex model.
  */
 export interface SubmitPromptResult {
-  type: 'submit_prompt';
+  type: "submit_prompt";
   content: PartListUnion;
 }
 
 /**
- * Defines the result of the slash command processor for its consumer (useGeminiStream).
+ * Defines the result of the slash command processor for its consumer (useKaiDexStream).
  */
 export type SlashCommandProcessorResult =
   | {
-      type: 'schedule_tool';
+      type: "schedule_tool";
       toolName: string;
       toolArgs: Record<string, unknown>;
     }
   | {
-      type: 'handled'; // Indicates the command was processed and no further action is needed.
+      type: "handled"; // Indicates the command was processed and no further action is needed.
     }
   | SubmitPromptResult;
 
@@ -361,8 +283,4 @@ export interface ShellConfirmationRequest {
 export interface ConfirmationRequest {
   prompt: ReactNode;
   onConfirm: (confirm: boolean) => void;
-}
-
-export interface LoopDetectionConfirmationRequest {
-  onComplete: (result: { userSelection: 'disable' | 'keep' }) => void;
 }
